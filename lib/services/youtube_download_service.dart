@@ -50,15 +50,16 @@ class YouTubeDownloadService {
   static const _progressChannel = EventChannel('com.example.precarium/download_progress');
 
   StreamSubscription? _progressSub;
-  String? _currentVideoId;
   void Function(String videoId, int percent)? onProgress;
 
   YouTubeDownloadService() {
     _progressSub = _progressChannel.receiveBroadcastStream().listen((event) {
-      final pct = event as int;
-      final vid = _currentVideoId;
-      if (vid != null) {
-        onProgress?.call(vid, pct);
+      if (event is Map) {
+        final videoId = event['videoId'] as String?;
+        final pct = event['percent'] as int? ?? 0;
+        if (videoId != null) {
+          onProgress?.call(videoId, pct);
+        }
       }
     });
   }
@@ -67,7 +68,6 @@ class YouTubeDownloadService {
 
   Future<DownloadProgress> startDownload(String videoId) async {
     _cancelled.remove(videoId);
-    _currentVideoId = videoId;
     var progress = DownloadProgress(videoId: videoId, title: '');
     _emit(progress);
 
@@ -95,6 +95,7 @@ class YouTubeDownloadService {
           .invokeMethod<String>('download', {
             'url': audioUrl,
             'filePath': filePath,
+            'videoId': videoId,
           })
           .timeout(const Duration(minutes: 10));
 
@@ -118,8 +119,6 @@ class YouTubeDownloadService {
       );
       _emit(result);
       return result;
-    } finally {
-      _currentVideoId = null;
     }
   }
 
@@ -144,7 +143,7 @@ class YouTubeDownloadService {
   }
 
   String _sanitizeFileName(String name) {
-    return name.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
+    return name.replaceAll(RegExp(r'[<>"/\\|?*]'), '_').trim();
   }
 
   void _emit(DownloadProgress p) {

@@ -78,7 +78,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
+            Material(type: MaterialType.transparency, child: ListTile(
               leading: const Icon(Icons.delete_outline, color: AppTheme.accentColor),
               title: const Text('Eliminar de la lista'),
               subtitle: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -86,16 +86,16 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 Navigator.pop(ctx);
                 context.read<LibraryProvider>().removeSongFromPlaylist(widget.playlist.id, song.id);
               },
-            ),
-            ListTile(
+            )),
+            Material(type: MaterialType.transparency, child: ListTile(
               leading: Icon(Icons.playlist_add, color: AppTheme.primaryColor),
               title: const Text('Añadir a lista'),
               onTap: () {
                 Navigator.pop(ctx);
                 _showAddToPlaylistDialog(song);
               },
-            ),
-            ListTile(
+            )),
+            Material(type: MaterialType.transparency, child: ListTile(
               leading: Icon(Icons.queue_music, color: AppTheme.primaryColor),
               title: const Text('Añadir a la fila'),
               onTap: () {
@@ -105,7 +105,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                   const SnackBar(content: Text('Añadida a la fila de reproducción')),
                 );
               },
-            ),
+            )),
           ],
         ),
       ),
@@ -127,7 +127,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             itemBuilder: (_, i) {
               final playlist = library.playlists[i];
               final alreadyIn = playlist.songs.any((s) => s.id == song.id);
-              return ListTile(
+              return Material(type: MaterialType.transparency, child: ListTile(
                 title: Text(playlist.name),
                 subtitle: Text('${playlist.songCount} canciones${alreadyIn ? ' (ya añadida)' : ''}'),
                 onTap: () {
@@ -139,7 +139,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                     SnackBar(content: Text(alreadyIn ? 'Ya está en "${playlist.name}"' : 'Añadida a "${playlist.name}"')),
                   );
                 },
-              );
+              ));
             },
           ),
         ),

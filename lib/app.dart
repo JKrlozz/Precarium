@@ -11,6 +11,7 @@ import 'screens/downloads_screen.dart';
 import 'widgets/mini_player.dart';
 import 'theme/app_theme.dart';
 import 'services/audio_player_service.dart';
+import 'services/media_notification_service.dart';
 
 class PrecariumApp extends StatefulWidget {
   final SettingsProvider settingsProvider;
@@ -68,6 +69,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  final MediaNotificationService _mediaNotification = MediaNotificationService();
 
   final List<Widget> _screens = const [
     LibraryScreen(),
@@ -80,11 +82,19 @@ class _MainShellState extends State<MainShell> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<PlayerProvider>().init();
+      final player = context.read<PlayerProvider>();
+      player.init();
+      _mediaNotification.init(player);
       context.read<DownloadProvider>().init(
         onDownloadComplete: () => context.read<LibraryProvider>().loadLibrary(),
       );
     });
+  }
+
+  @override
+  void dispose() {
+    _mediaNotification.dispose();
+    super.dispose();
   }
 
   @override

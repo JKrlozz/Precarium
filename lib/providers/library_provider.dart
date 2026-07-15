@@ -27,6 +27,19 @@ class LibraryProvider extends ChangeNotifier {
     return _songs.fold(Duration.zero, (sum, s) => sum + s.duration);
   }
 
+  int get totalFileSize {
+    if (_songs.isEmpty) return 0;
+    return _songs.fold(0, (sum, s) => sum + s.fileSize);
+  }
+
+  String get formattedTotalFileSize {
+    final bytes = totalFileSize;
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
   Playlist? get likedPlaylist {
     final idx = _playlists.indexWhere((p) => p.id == likedPlaylistId);
     return idx != -1 ? _playlists[idx] : null;

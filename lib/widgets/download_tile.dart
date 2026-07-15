@@ -83,6 +83,7 @@ class DownloadTile extends StatelessWidget {
   Widget? _buildTrailing(BuildContext context) {
     switch (task.status) {
       case DownloadStatus.downloading:
+      case DownloadStatus.pending:
         return IconButton(
           icon: const Icon(Icons.cancel, color: AppTheme.accentColor),
           onPressed: () => context.read<DownloadProvider>().cancelTask(task.id),

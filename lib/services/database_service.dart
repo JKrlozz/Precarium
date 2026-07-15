@@ -16,7 +16,7 @@ class DatabaseService {
     final path = p.join(dbPath, 'precarium.db');
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE songs (
@@ -31,7 +31,8 @@ class DatabaseService {
             discNumber INTEGER,
             year INTEGER,
             genre TEXT,
-            downloadDate TEXT
+            downloadDate TEXT,
+            fileSize INTEGER NOT NULL DEFAULT 0
           )
         ''');
         await db.execute('''
@@ -56,6 +57,12 @@ class DatabaseService {
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await db.execute('ALTER TABLE songs ADD COLUMN fileSize INTEGER NOT NULL DEFAULT 0');
+        } else if (oldVersion == 2) {
+          try {
+            await db.execute('ALTER TABLE songs ADD COLUMN fileSize INTEGER NOT NULL DEFAULT 0');
+          } catch (_) {
+            // column may already exist
+          }
         }
       },
     );

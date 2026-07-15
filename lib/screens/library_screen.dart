@@ -48,7 +48,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
+            Material(type: MaterialType.transparency, child: ListTile(
               leading: const Icon(Icons.delete_outline, color: AppTheme.accentColor),
               title: const Text('Eliminar canción'),
               subtitle: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -56,16 +56,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 Navigator.pop(ctx);
                 _confirmDeleteSong(song);
               },
-            ),
-            ListTile(
+            )),
+            Material(type: MaterialType.transparency, child: ListTile(
               leading: Icon(Icons.playlist_add, color: AppTheme.primaryColor),
               title: const Text('Añadir a lista'),
               onTap: () {
                 Navigator.pop(ctx);
                 _showAddToPlaylistDialog(song);
               },
-            ),
-            ListTile(
+            )),
+            Material(type: MaterialType.transparency, child: ListTile(
               leading: Icon(Icons.queue_music, color: AppTheme.primaryColor),
               title: const Text('Añadir a la fila'),
               onTap: () {
@@ -75,7 +75,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   const SnackBar(content: Text('Añadida a la fila de reproducción')),
                 );
               },
-            ),
+            )),
           ],
         ),
       ),
@@ -127,7 +127,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             itemCount: library.playlists.length,
             itemBuilder: (_, i) {
               final playlist = library.playlists[i];
-              return ListTile(
+              return Material(type: MaterialType.transparency, child: ListTile(
                 title: Text(playlist.name),
                 subtitle: Text('${playlist.songCount} canciones'),
                 onTap: () {
@@ -137,7 +137,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     SnackBar(content: Text('Añadida a "${playlist.name}"')),
                   );
                 },
-              );
+              ));
             },
           ),
         ),
@@ -413,7 +413,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 ),
                 const Spacer(),
                 Text(
-                  '${library.totalDuration.inHours}h ${library.totalDuration.inMinutes.remainder(60)}m',
+                  '${library.formattedTotalFileSize} · ${library.totalDuration.inHours}h ${library.totalDuration.inMinutes.remainder(60)}m',
                   style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                 ),
               ],

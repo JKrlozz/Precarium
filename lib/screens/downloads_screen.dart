@@ -35,7 +35,6 @@ class DownloadsScreen extends StatelessWidget {
           if (downloadProvider.tasks.isEmpty) {
             return _buildEmptyState();
           }
-
           return _buildDownloadList(downloadProvider);
         },
       ),
@@ -66,22 +65,26 @@ class DownloadsScreen extends StatelessWidget {
   }
 
   Widget _buildDownloadList(DownloadProvider provider) {
-    final activeTasks = provider.activeTasks;
+    final pendingTasks = provider.pendingTasks;
+    final downloadingTasks = provider.downloadingTasks;
     final completedTasks = provider.completedTasks;
     final failedTasks = provider.failedTasks;
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 80),
       children: [
-        if (activeTasks.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+        if (downloadingTasks.isNotEmpty || pendingTasks.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(
-              'Descargas activas',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              'En cola (${provider.activeCount})',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),
-          ...activeTasks.map((task) => DownloadTile(task: task)),
+          if (downloadingTasks.isNotEmpty)
+                          ...downloadingTasks.map((task) => DownloadTile(task: task)),
+          if (pendingTasks.isNotEmpty)
+            ...pendingTasks.map((task) => DownloadTile(task: task)),
           const Divider(height: 24, color: AppTheme.dividerColor),
         ],
         if (failedTasks.isNotEmpty) ...[
@@ -99,7 +102,7 @@ class DownloadsScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Text(
-              'Completadas',
+              'Completadas (${completedTasks.length})',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.primaryColor),
             ),
           ),

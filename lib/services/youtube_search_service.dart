@@ -26,30 +26,33 @@ class YouTubeSearchResult {
 class YouTubeSearchService {
   final YoutubeExplode _yt = YoutubeExplode();
 
-  Future<List<YouTubeSearchResult>> search(String query, {bool musicOnly = true}) async {
-    try {
-      final searchQuery = musicOnly ? '$query música' : query;
-      final results = await _yt.search.search(searchQuery);
-
-      final videos = <YouTubeSearchResult>[];
-      for (final result in results) {
-        try {
-          videos.add(YouTubeSearchResult(
-            id: result.id.value,
-            title: result.title,
-            channel: result.author,
-            thumbnailUrl: result.thumbnails.mediumResUrl,
-            duration: result.duration ?? Duration.zero,
-          ));
-          if (videos.length >= 20) break;
-        } catch (_) {
-          continue;
+  Future<List<YouTubeSearchResult>> search(String query) async {
+    for (final searchQuery in {query, '$query música'}) {
+      try {
+        final results = await _yt.search
+            .search(searchQuery)
+            .timeout(const Duration(seconds: 15));
+        final videos = <YouTubeSearchResult>[];
+        for (final result in results) {
+          try {
+            videos.add(YouTubeSearchResult(
+              id: result.id.value,
+              title: result.title,
+              channel: result.author,
+              thumbnailUrl: result.thumbnails.mediumResUrl,
+              duration: result.duration ?? Duration.zero,
+            ));
+            if (videos.length >= 3) break;
+          } catch (_) {
+            continue;
+          }
         }
+        if (videos.isNotEmpty) return videos;
+      } catch (_) {
+        continue;
       }
-      return videos;
-    } catch (e) {
-      throw Exception('Error al buscar: $e');
     }
+    return [];
   }
 
   Future<List<String>> getSuggestions(String query) async {

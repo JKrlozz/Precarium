@@ -42,5 +42,6 @@ flutter {
 dependencies {
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("androidx.media:media:1.7.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.4")
 }

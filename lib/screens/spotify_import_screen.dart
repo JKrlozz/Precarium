@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/song.dart';
 import '../services/spotify_service.dart';
 import '../services/youtube_search_service.dart';
 import '../services/csv_import_service.dart';
@@ -35,6 +36,8 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
   bool _loginLoading = false;
   String? _error;
 
+  Set<int> _existingIndices = {};
+
   int _downloaded = 0;
   int _failed = 0;
   int _skipped = 0;
@@ -50,7 +53,6 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
   @override
   void dispose() {
     _playlistUrlController.dispose();
-    _ytSearch.dispose();
     super.dispose();
   }
 
@@ -83,7 +85,12 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
       )).toList();
       _sourceName = playlist.name;
       _selectedIndices.addAll(List.generate(_tracks.length, (i) => i));
-      if (mounted) setState(() => _step = _ImportStep.selecting);
+      if (mounted) {
+        setState(() {
+          _step = _ImportStep.selecting;
+          _computeExistingIndices();
+        });
+      }
     } on RequiresPremiumException {
       _error = _spotify.isLoggedIn
           ? 'Esta playlist requiere una cuenta Spotify Premium.'
@@ -113,7 +120,12 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
       )).toList();
       _sourceName = result.fileName;
       _selectedIndices.addAll(List.generate(_tracks.length, (i) => i));
-      if (mounted) setState(() => _step = _ImportStep.selecting);
+      if (mounted) {
+        setState(() {
+          _step = _ImportStep.selecting;
+          _computeExistingIndices();
+        });
+      }
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
     } finally {
@@ -126,6 +138,10 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
     final selected = _selectedIndices.map((i) => _tracks[i]).toList();
     if (selected.isEmpty) return;
 
+    final downloadProvider = context.read<DownloadProvider>();
+    final existingLibrarySongs = context.read<LibraryProvider>().songs.toList();
+    final libraryProvider = context.read<LibraryProvider>();
+
     setState(() {
       _step = _ImportStep.downloading;
       _downloaded = 0;
@@ -135,42 +151,39 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
       _statusText = 'Buscando en YouTube...';
     });
 
-    final downloadProvider = context.read<DownloadProvider>();
-    final library = context.read<LibraryProvider>();
-    final existingTitles = library.songs.map((s) => s.title.trim().toLowerCase()).toSet();
-
     for (int i = 0; i < selected.length; i++) {
       final track = selected[i];
-      if (!mounted) return;
 
-      setState(() {
-        _statusText = '(${i + 1}/$_total) ${track.name}';
-      });
+      if (mounted) {
+        setState(() {
+          _statusText = '(${i + 1}/$_total) Buscando ${track.name}...';
+        });
+      }
 
-      if (existingTitles.contains(track.name.trim().toLowerCase())) {
-        setState(() => _skipped++);
+      if (_matchesExisting(track.name, existingLibrarySongs)) {
+        if (mounted) setState(() => _skipped++);
         continue;
       }
 
       try {
-        final results = await _ytSearch.search(track.searchQuery, musicOnly: true);
-        if (results.isNotEmpty) {
-          final first = results.first;
+        final searchResults = await _ytSearch.search(track.searchQuery);
+        if (searchResults.isNotEmpty) {
+          final first = searchResults.first;
           downloadProvider.addDownload(
             first.id,
             first.title,
             artist: track.artists,
             thumbnailUrl: first.thumbnailUrl,
           );
-          setState(() => _downloaded++);
+          if (mounted) setState(() => _downloaded++);
         } else {
-          setState(() => _failed++);
+          if (mounted) setState(() => _failed++);
         }
       } catch (_) {
-        setState(() => _failed++);
+        if (mounted) setState(() => _failed++);
       }
 
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 2000));
     }
 
     if (mounted) {
@@ -178,11 +191,51 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
         _step = _ImportStep.done;
         _statusText = '';
       });
-      library.loadLibrary();
+      libraryProvider.loadLibrary();
     }
   }
 
   // ── Helpers ──
+
+  void _uncheckExisting() {
+    _computeExistingIndices();
+    int count = 0;
+    for (final i in _existingIndices) {
+      if (_selectedIndices.remove(i)) count++;
+    }
+    setState(() {});
+    if (count > 0 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$count canción(es) ya descargada(s) — deseleccionadas')),
+      );
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se encontraron canciones ya descargadas')),
+      );
+    }
+  }
+
+  bool _matchesExisting(String importName, List<Song> librarySongs) {
+    String normalize(String s) {
+      return s.trim().toLowerCase().replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+    }
+    final needle = normalize(importName);
+    if (needle.isEmpty) return false;
+    return librarySongs.any((s) {
+      final title = normalize(s.title);
+      return title.contains(needle) || needle.contains(title);
+    });
+  }
+
+  void _computeExistingIndices() {
+    _existingIndices = {};
+    final songs = context.read<LibraryProvider>().songs.toList();
+    for (int i = 0; i < _tracks.length; i++) {
+      if (_matchesExisting(_tracks[i].name, songs)) {
+        _existingIndices.add(i);
+      }
+    }
+  }
 
   void _resetToInput() {
     setState(() {
@@ -191,6 +244,7 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
       _selectedIndices.clear();
       _error = null;
       _sourceName = null;
+      _existingIndices = {};
     });
   }
 
@@ -459,6 +513,11 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
                 onPressed: () => setState(() => _selectedIndices.clear()),
                 tooltip: 'Deseleccionar todo',
               ),
+              IconButton(
+                icon: Icon(Icons.checklist, color: Theme.of(context).colorScheme.primary),
+                onPressed: _uncheckExisting,
+                tooltip: 'Detectar ya descargadas',
+              ),
             ],
           ),
         ),
@@ -480,16 +539,31 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
                 }),
                 title: Text(track.name, maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurface)),
-                subtitle: Text(track.artists.isNotEmpty ? track.artists : 'Sin artista',
+                subtitle: Text(
+                    _existingIndices.contains(index)
+                        ? '${track.artists.isNotEmpty ? track.artists : 'Sin artista'} · ya descargada'
+                        : (track.artists.isNotEmpty ? track.artists : 'Sin artista'),
                     maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _existingIndices.contains(index)
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    )),
                 secondary: Container(
                   width: 40, height: 40,
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
+                    color: _existingIndices.contains(index)
+                        ? theme.colorScheme.primary.withValues(alpha: 0.15)
+                        : theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Icon(Icons.music_note, color: AppTheme.textSecondary),
+                  child: Icon(
+                    _existingIndices.contains(index) ? Icons.check_circle : Icons.music_note,
+                    color: _existingIndices.contains(index)
+                        ? theme.colorScheme.primary
+                        : AppTheme.textSecondary,
+                  ),
                 ),
               );
             },
@@ -538,7 +612,7 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
             const SizedBox(height: 16),
             LinearProgressIndicator(value: _total > 0 ? (_downloaded + _failed + _skipped) / _total : 0),
             const SizedBox(height: 8),
-            Text('$_downloaded descargadas · $_skipped omitidas · $_failed fallidas',
+            Text('$_downloaded encontradas · $_skipped omitidas · $_failed fallidas',
                 style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
           ],
         ),
@@ -558,7 +632,7 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
             Text('Importación completada',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
             const SizedBox(height: 8),
-            Text('$_downloaded canciones descargadas · $_skipped omitidas · $_failed fallidas',
+            Text('$_downloaded en cola · $_skipped omitidas · $_failed fallidas',
                 style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
             const SizedBox(height: 32),
             ElevatedButton(
@@ -567,7 +641,7 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               ),
-              child: const Text('Volver', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              child: const Text('Ir a descargas', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
             ),
           ],
         ),

@@ -9,11 +9,16 @@ class DownloadProvider extends ChangeNotifier {
   final List<String> _downloadQueue = [];
   StreamSubscription? _progressSub;
   VoidCallback? _onDownloadComplete;
-  bool _isProcessing = false;
+  int _activeCount = 0;
+  static const int _maxConcurrent = 2;
 
   List<DownloadTask> get tasks => List.unmodifiable(_tasks);
   List<DownloadTask> get activeTasks =>
       _tasks.where((t) => t.status == DownloadStatus.downloading || t.status == DownloadStatus.pending).toList();
+  List<DownloadTask> get downloadingTasks =>
+      _tasks.where((t) => t.status == DownloadStatus.downloading).toList();
+  List<DownloadTask> get pendingTasks =>
+      _tasks.where((t) => t.status == DownloadStatus.pending).toList();
   List<DownloadTask> get completedTasks =>
       _tasks.where((t) => t.status == DownloadStatus.completed).toList();
   List<DownloadTask> get failedTasks =>
@@ -119,20 +124,21 @@ class DownloadProvider extends ChangeNotifier {
     _processQueue();
   }
 
-  Future<void> _processQueue() async {
-    if (_isProcessing || _downloadQueue.isEmpty) return;
-    _isProcessing = true;
-
-    while (_downloadQueue.isNotEmpty) {
+  void _processQueue() {
+    while (_downloadQueue.isNotEmpty && _activeCount < _maxConcurrent) {
       final videoId = _downloadQueue.removeAt(0);
       final taskIndex = _tasks.indexWhere((t) => t.videoId == videoId);
       if (taskIndex == -1) continue;
       if (_tasks[taskIndex].status == DownloadStatus.cancelled) continue;
 
-      await _downloadService.startDownload(videoId);
+      _activeCount++;
+      notifyListeners();
+      _downloadService.startDownload(videoId).whenComplete(() {
+        _activeCount--;
+        notifyListeners();
+        _processQueue();
+      });
     }
-
-    _isProcessing = false;
   }
 
   @override

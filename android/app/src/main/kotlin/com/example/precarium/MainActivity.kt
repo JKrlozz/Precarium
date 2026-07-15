@@ -9,5 +9,6 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         NativeExecutor.registerWith(flutterEngine, applicationContext)
         flutterEngine.plugins.add(FilePickerPlugin())
+        flutterEngine.plugins.add(MediaNotificationPlugin())
     }
 }

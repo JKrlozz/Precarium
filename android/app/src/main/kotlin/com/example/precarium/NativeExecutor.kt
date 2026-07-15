@@ -8,16 +8,19 @@ import io.flutter.plugin.common.MethodChannel
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.schabi.newpipe.extractor.NewPipe
+import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.net.SocketException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 class NativeExecutor(private val context: Context) {
 
     private val okHttp = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
         .followRedirects(true)
         .build()
 
@@ -65,9 +68,10 @@ class NativeExecutor(private val context: Context) {
                     "download" -> {
                         val url = call.argument<String>("url")!!
                         val filePath = call.argument<String>("filePath")!!
+                        val videoId = call.argument<String>("videoId")
                         executor.background.submit {
                             try {
-                                executor.downloadAudio(url, filePath)
+                                executor.downloadAudio(url, filePath, videoId)
                                 executor.mainHandler.post { result.success(filePath) }
                             } catch (e: Exception) {
                                 executor.mainHandler.post { result.error("EXEC_ERROR", "${e.javaClass.simpleName}: ${e.message}", null) }
@@ -127,33 +131,53 @@ class NativeExecutor(private val context: Context) {
         return """{"url":"${escapeJson(audioUrl)}","format":"$formatSuffix","bitrate":$bitrate,"title":"${escapeJson(title)}"}"""
     }
 
-    fun downloadAudio(url: String, filePath: String) {
-        val request = Request.Builder().url(url)
-            .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
-            .header("Accept", "*/*")
-            .header("Accept-Encoding", "identity")
-            .build()
-        val response = okHttp.newCall(request).execute()
-        if (!response.isSuccessful) throw Exception("HTTP ${response.code}")
-        val body = response.body ?: throw Exception("No response body")
-        val contentLength = body.contentLength()
-        val output = FileOutputStream(File(filePath))
-        try {
-            val input = body.byteStream()
-            val buffer = ByteArray(8192)
-            var totalRead = 0L
-            var bytesRead: Int
-            while (input.read(buffer).also { bytesRead = it } != -1) {
-                output.write(buffer, 0, bytesRead)
-                totalRead += bytesRead
-                if (contentLength > 0) {
-                    val pct = ((totalRead.toDouble() / contentLength.toDouble()) * 100).toInt()
-                    mainHandler.post { progressSink?.success(pct) }
+    fun downloadAudio(url: String, filePath: String, videoId: String? = null) {
+        var attempt = 0
+        val maxAttempts = 2
+        while (attempt < maxAttempts) {
+            try {
+                val request = Request.Builder().url(url)
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                    .header("Accept", "*/*")
+                    .build()
+                val response = okHttp.newCall(request).execute()
+                if (!response.isSuccessful) throw Exception("HTTP ${response.code}")
+                val body = response.body ?: throw Exception("No response body")
+                val contentLength = body.contentLength()
+                val output = BufferedOutputStream(FileOutputStream(File(filePath)))
+                var lastReportedPct = -1
+                try {
+                    val input = body.byteStream()
+                    val buffer = ByteArray(262144)
+                    var totalRead = 0L
+                    var bytesRead: Int
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        totalRead += bytesRead
+                        if (contentLength > 0) {
+                            val pct = ((totalRead.toDouble() / contentLength.toDouble()) * 100).toInt()
+                            if (pct != lastReportedPct) {
+                                lastReportedPct = pct
+                                val map = HashMap<String, Any>()
+                                if (videoId != null) map["videoId"] = videoId
+                                map["percent"] = pct
+                                mainHandler.post { progressSink?.success(map) }
+                            }
+                        }
+                    }
+                    val finalMap = HashMap<String, Any>()
+                    if (videoId != null) finalMap["videoId"] = videoId
+                    finalMap["percent"] = 100
+                    mainHandler.post { progressSink?.success(finalMap) }
+                } finally {
+                    output.close()
                 }
+                return
+            } catch (e: SocketException) {
+                attempt++
+                if (attempt >= maxAttempts) throw e
+                Thread.sleep(2000L * attempt)
             }
-            mainHandler.post { progressSink?.success(100) }
-        } finally {
-            output.close()
         }
     }
 
