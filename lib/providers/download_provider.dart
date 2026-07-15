@@ -6,8 +6,10 @@ import '../services/youtube_download_service.dart';
 class DownloadProvider extends ChangeNotifier {
   final YouTubeDownloadService _downloadService = YouTubeDownloadService();
   final List<DownloadTask> _tasks = [];
+  final List<String> _downloadQueue = [];
   StreamSubscription? _progressSub;
   VoidCallback? _onDownloadComplete;
+  bool _isProcessing = false;
 
   List<DownloadTask> get tasks => List.unmodifiable(_tasks);
   List<DownloadTask> get activeTasks =>
@@ -17,6 +19,7 @@ class DownloadProvider extends ChangeNotifier {
   List<DownloadTask> get failedTasks =>
       _tasks.where((t) => t.status == DownloadStatus.failed).toList();
   int get activeCount => activeTasks.length;
+  bool get hasQueue => _downloadQueue.isNotEmpty;
 
   Future<void> init({VoidCallback? onDownloadComplete}) async {
     _onDownloadComplete = onDownloadComplete;
@@ -77,22 +80,25 @@ class DownloadProvider extends ChangeNotifier {
     );
 
     _tasks.insert(0, task);
+    _downloadQueue.add(videoId);
     notifyListeners();
-    _downloadService.startDownload(videoId);
+    _processQueue();
   }
 
   void cancelTask(String id) {
     final index = _tasks.indexWhere((t) => t.id == id);
-    if (index != -1) {
-      _downloadService.cancelDownload(_tasks[index].videoId);
-      _tasks[index] = _tasks[index].copyWith(status: DownloadStatus.cancelled);
-      notifyListeners();
-    }
+    if (index == -1) return;
+    final videoId = _tasks[index].videoId;
+    _downloadQueue.remove(videoId);
+    _downloadService.cancelDownload(videoId);
+    _tasks[index] = _tasks[index].copyWith(status: DownloadStatus.cancelled);
+    notifyListeners();
   }
 
   void removeTask(String id) {
     final index = _tasks.indexWhere((t) => t.id == id);
     if (index != -1) {
+      _downloadQueue.remove(_tasks[index].videoId);
       _tasks.removeAt(index);
       notifyListeners();
     }
@@ -108,8 +114,25 @@ class DownloadProvider extends ChangeNotifier {
       progress: 0.0,
       errorMessage: null,
     );
+    _downloadQueue.add(task.videoId);
     notifyListeners();
-    _downloadService.startDownload(task.videoId);
+    _processQueue();
+  }
+
+  Future<void> _processQueue() async {
+    if (_isProcessing || _downloadQueue.isEmpty) return;
+    _isProcessing = true;
+
+    while (_downloadQueue.isNotEmpty) {
+      final videoId = _downloadQueue.removeAt(0);
+      final taskIndex = _tasks.indexWhere((t) => t.videoId == videoId);
+      if (taskIndex == -1) continue;
+      if (_tasks[taskIndex].status == DownloadStatus.cancelled) continue;
+
+      await _downloadService.startDownload(videoId);
+    }
+
+    _isProcessing = false;
   }
 
   @override

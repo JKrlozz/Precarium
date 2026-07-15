@@ -8,5 +8,6 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         NativeExecutor.registerWith(flutterEngine, applicationContext)
+        flutterEngine.plugins.add(FilePickerPlugin())
     }
 }
