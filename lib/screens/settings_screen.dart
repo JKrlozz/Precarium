@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
+import 'spotify_import_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -40,6 +41,18 @@ class SettingsScreen extends StatelessWidget {
               _ThemeSelector(settings: settings),
               const SizedBox(height: 24),
               _ColorPicker(settings: settings),
+              const SizedBox(height: 24),
+              _SectionHeader(title: 'Spotify'),
+              const SizedBox(height: 8),
+              _SettingsButton(
+                icon: Icons.queue_music,
+                label: 'Importar lista de Spotify',
+                subtitle: 'Busca y descarga canciones desde una playlist',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SpotifyImportScreen()),
+                ),
+              ),
               const SizedBox(height: 24),
               _SectionHeader(title: 'Acerca de'),
               const SizedBox(height: 8),
@@ -172,6 +185,37 @@ class _ThemeOption extends StatelessWidget {
           ? Icon(Icons.check_circle, color: theme.colorScheme.primary, size: 20)
           : null,
       onTap: onTap,
+    );
+  }
+}
+
+class _SettingsButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _SettingsButton({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
+        title: Text(label, style: TextStyle(color: theme.colorScheme.onSurface)),
+        subtitle: Text(subtitle, style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
     );
   }
 }
