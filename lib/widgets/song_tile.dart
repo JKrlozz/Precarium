@@ -83,23 +83,23 @@ class SongTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'add_playlist',
                 child: Row(
                   children: [
                     Icon(Icons.playlist_add, color: AppTheme.primaryColor, size: 20),
-                    SizedBox(width: 8),
-                    Text('Añadir a lista'),
+                    const SizedBox(width: 8),
+                    const Text('Añadir a lista'),
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'add_queue',
                 child: Row(
                   children: [
                     Icon(Icons.queue_music, color: AppTheme.primaryColor, size: 20),
-                    SizedBox(width: 8),
-                    Text('Añadir a la fila'),
+                    const SizedBox(width: 8),
+                    const Text('Añadir a la fila'),
                   ],
                 ),
               ),

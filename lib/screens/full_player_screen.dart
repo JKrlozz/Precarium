@@ -31,7 +31,7 @@ class FullPlayerScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      const Icon(Icons.queue_music, color: AppTheme.primaryColor),
+                      Icon(Icons.queue_music, color: AppTheme.primaryColor),
                       const SizedBox(width: 8),
                       Text(
                         'Fila de reproducción (${queue.length})',

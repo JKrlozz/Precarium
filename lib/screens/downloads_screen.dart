@@ -96,8 +96,8 @@ class DownloadsScreen extends StatelessWidget {
           const Divider(height: 24, color: AppTheme.dividerColor),
         ],
         if (completedTasks.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Text(
               'Completadas',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.primaryColor),

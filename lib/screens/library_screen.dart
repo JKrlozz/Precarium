@@ -7,6 +7,7 @@ import '../providers/player_provider.dart';
 import '../widgets/song_tile.dart';
 import '../theme/app_theme.dart';
 import 'playlist_detail_screen.dart';
+import 'settings_screen.dart';
 
 enum _LibraryTab { songs, artists, albums, playlists }
 
@@ -57,7 +58,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.playlist_add, color: AppTheme.primaryColor),
+              leading: Icon(Icons.playlist_add, color: AppTheme.primaryColor),
               title: const Text('Añadir a lista'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -65,7 +66,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.queue_music, color: AppTheme.primaryColor),
+              leading: Icon(Icons.queue_music, color: AppTheme.primaryColor),
               title: const Text('Añadir a la fila'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -191,6 +192,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
       builder: (context, library, _) {
         return Scaffold(
           appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.settings),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              ),
+              tooltip: 'Configuración',
+            ),
             title: _isSearching
                 ? TextField(
                     controller: _searchController,
@@ -338,7 +347,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               decoration: BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
-                    color: isSelected ? AppTheme.primaryColor : Colors.transparent,
+                    color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
                     width: 2,
                   ),
                 ),
@@ -346,12 +355,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icons[tab], size: 16, color: isSelected ? AppTheme.primaryColor : AppTheme.textSecondary),
+                  Icon(icons[tab], size: 16, color: isSelected ? Theme.of(context).colorScheme.primary : AppTheme.textSecondary),
                   const SizedBox(width: 6),
                   Text(
                     labels[tab]!,
                     style: TextStyle(
-                      color: isSelected ? AppTheme.primaryColor : AppTheme.textSecondary,
+                      color: isSelected ? Theme.of(context).colorScheme.primary : AppTheme.textSecondary,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                       fontSize: 13,
                     ),
@@ -527,7 +536,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               color: AppTheme.cardColor,
               borderRadius: BorderRadius.circular(6),
             ),
-            child: const Icon(Icons.playlist_play, color: AppTheme.primaryColor),
+            child: Icon(Icons.playlist_play, color: AppTheme.primaryColor),
           ),
           title: Text(playlist.name, style: const TextStyle(fontWeight: FontWeight.w500)),
           subtitle: Text(

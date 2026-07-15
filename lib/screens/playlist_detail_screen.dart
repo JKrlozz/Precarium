@@ -88,7 +88,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.playlist_add, color: AppTheme.primaryColor),
+              leading: Icon(Icons.playlist_add, color: AppTheme.primaryColor),
               title: const Text('Añadir a lista'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -96,7 +96,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.queue_music, color: AppTheme.primaryColor),
+              leading: Icon(Icons.queue_music, color: AppTheme.primaryColor),
               title: const Text('Añadir a la fila'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -328,7 +328,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.play_circle_fill, color: AppTheme.primaryColor),
+            icon: Icon(Icons.play_circle_fill, color: AppTheme.primaryColor),
             iconSize: 32,
             tooltip: 'Reproducir todo',
             onPressed: () {

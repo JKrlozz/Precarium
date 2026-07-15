@@ -35,7 +35,7 @@ class DownloadTile extends StatelessWidget {
   Widget _buildLeadingIcon() {
     switch (task.status) {
       case DownloadStatus.completed:
-        return const Icon(Icons.check_circle, color: AppTheme.primaryColor);
+        return Icon(Icons.check_circle, color: AppTheme.primaryColor);
       case DownloadStatus.failed:
         return const Icon(Icons.error, color: AppTheme.accentColor);
       case DownloadStatus.cancelled:
@@ -68,7 +68,7 @@ class DownloadTile extends StatelessWidget {
       case DownloadStatus.completed:
         return Text(
           task.filePath?.split('/').last ?? 'Completado',
-          style: const TextStyle(color: AppTheme.primaryColor, fontSize: 12),
+          style: TextStyle(color: AppTheme.primaryColor, fontSize: 12),
         );
       case DownloadStatus.failed:
         return Text(

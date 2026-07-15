@@ -4,6 +4,7 @@ import 'providers/library_provider.dart';
 import 'providers/player_provider.dart';
 import 'providers/search_provider.dart';
 import 'providers/download_provider.dart';
+import 'providers/settings_provider.dart';
 import 'screens/library_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/downloads_screen.dart';
@@ -12,7 +13,9 @@ import 'theme/app_theme.dart';
 import 'services/audio_player_service.dart';
 
 class PrecariumApp extends StatefulWidget {
-  const PrecariumApp({super.key});
+  final SettingsProvider settingsProvider;
+
+  const PrecariumApp({super.key, required this.settingsProvider});
 
   @override
   State<PrecariumApp> createState() => _PrecariumAppState();
@@ -29,18 +32,28 @@ class _PrecariumAppState extends State<PrecariumApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => LibraryProvider()),
-        ChangeNotifierProvider(create: (_) => PlayerProvider(_audioService)),
-        ChangeNotifierProvider(create: (_) => SearchProvider()),
-        ChangeNotifierProvider(create: (_) => DownloadProvider()),
-      ],
-      child: MaterialApp(
-        title: 'Precarium',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.darkTheme,
-        home: const MainShell(),
+    return ChangeNotifierProvider.value(
+      value: widget.settingsProvider,
+      child: Consumer<SettingsProvider>(
+        builder: (context, settings, _) {
+          AppTheme.primaryColor = settings.primaryColor;
+          return MultiProvider(
+            providers: [
+              ChangeNotifierProvider(create: (_) => LibraryProvider()),
+              ChangeNotifierProvider(create: (_) => PlayerProvider(_audioService)),
+              ChangeNotifierProvider(create: (_) => SearchProvider()),
+              ChangeNotifierProvider(create: (_) => DownloadProvider()),
+            ],
+            child: MaterialApp(
+              title: 'Precarium',
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.lightTheme,
+              darkTheme: AppTheme.darkTheme,
+              themeMode: settings.themeMode,
+              home: const MainShell(),
+            ),
+          );
+        },
       ),
     );
   }
