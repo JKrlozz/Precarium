@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import '../models/song.dart';
 
@@ -10,6 +11,8 @@ class AudioPlayerService {
   int _currentIndex = -1;
   bool _isShuffled = false;
   PlayerRepeatMode _repeatMode = PlayerRepeatMode.off;
+  int _playCounter = 0;
+  VoidCallback? onSongChanged;
 
   List<int> _shuffleOrder = [];
   int _shuffleIndex = 0;
@@ -33,12 +36,29 @@ class AudioPlayerService {
     return null;
   }
 
+  List<Song> get displayQueue {
+    if (!_isShuffled) return List.unmodifiable(_queue);
+    return _shuffleOrder.map((i) => _queue[i]).toList();
+  }
+
+  int get displayIndex {
+    if (!_isShuffled) return _currentIndex;
+    final idx = _shuffleOrder.indexOf(_currentIndex);
+    return idx >= 0 ? idx : _currentIndex;
+  }
+
   Future<void> init() async {
     _player.playbackEventStream.listen(_onPlaybackEvent);
   }
 
-  void _onPlaybackEvent(PlaybackEvent event) {
-    _player.positionStream.listen((_) {});
+  void _onPlaybackEvent(PlaybackEvent event) async {
+    if (event.processingState == ProcessingState.completed) {
+      if (_repeatMode != PlayerRepeatMode.all || _queue.length <= 1) return;
+      final counterAtEvent = _playCounter;
+      await Future.delayed(const Duration(milliseconds: 150));
+      if (_playCounter != counterAtEvent) return;
+      _advanceToNext();
+    }
   }
 
   Future<void> playSong(Song song, {List<Song>? queue}) async {
@@ -67,9 +87,12 @@ class AudioPlayerService {
 
   Future<void> _playAtIndex(int index) async {
     if (index < 0 || index >= _queue.length) return;
+    _playCounter++;
     _currentIndex = index;
+    onSongChanged?.call();
     final song = _queue[index];
     try {
+      await _player.stop();
       await _player.setFilePath(song.filePath);
       await _player.play();
     } catch (e) {
@@ -91,6 +114,21 @@ class AudioPlayerService {
 
   Future<void> pause() async {
     await _player.pause();
+  }
+
+  Future<void> _advanceToNext() async {
+    if (_queue.isEmpty) return;
+    if (_isShuffled) {
+      _shuffleIndex = (_shuffleIndex + 1) % _shuffleOrder.length;
+      await _playAtIndex(_shuffleOrder[_shuffleIndex]);
+    } else {
+      final nextIndex = _currentIndex + 1;
+      if (nextIndex >= _queue.length) {
+        await _playAtIndex(0);
+      } else {
+        await _playAtIndex(nextIndex);
+      }
+    }
   }
 
   Future<void> next() async {
@@ -145,6 +183,10 @@ class AudioPlayerService {
 
   Future<void> seekToIndex(int index) async {
     if (index >= 0 && index < _queue.length) {
+      if (_isShuffled) {
+        final shuffleIdx = _shuffleOrder.indexOf(index);
+        if (shuffleIdx >= 0) _shuffleIndex = shuffleIdx;
+      }
       await _playAtIndex(index);
     }
   }
@@ -170,12 +212,10 @@ class AudioPlayerService {
 
   LoopMode _getLoopMode() {
     switch (_repeatMode) {
-      case PlayerRepeatMode.off:
-        return LoopMode.off;
-      case PlayerRepeatMode.all:
-        return LoopMode.all;
       case PlayerRepeatMode.one:
         return LoopMode.one;
+      default:
+        return LoopMode.off;
     }
   }
 
@@ -187,6 +227,19 @@ class AudioPlayerService {
       _shuffleOrder.insert(0, _currentIndex);
     }
     _shuffleIndex = 0;
+  }
+
+  void removeFromQueue(int index) {
+    if (index < 0 || index >= _queue.length) return;
+    _queue.removeAt(index);
+    if (_currentIndex >= 0) {
+      if (index < _currentIndex) {
+        _currentIndex--;
+      } else if (index == _currentIndex) {
+        _currentIndex = _currentIndex.clamp(0, _queue.length - 1);
+      }
+    }
+    _buildShuffleOrder();
   }
 
   void clearQueue() {

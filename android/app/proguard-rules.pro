@@ -1,0 +1,2 @@
+-dontwarn java.beans.**
+-keep class java.beans.** { *; }

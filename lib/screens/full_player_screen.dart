@@ -18,8 +18,8 @@ class FullPlayerScreen extends StatelessWidget {
       ),
       builder: (ctx) => Consumer<PlayerProvider>(
         builder: (context, player, _) {
-          final queue = player.queue;
-          final currentIndex = player.currentIndex;
+          final queue = player.displayQueue;
+          final currentIdx = player.displayIndex;
           return DraggableScrollableSheet(
             initialChildSize: 0.6,
             maxChildSize: 0.85,
@@ -61,7 +61,7 @@ class FullPlayerScreen extends StatelessWidget {
                           itemCount: queue.length,
                           itemBuilder: (_, index) {
                             final song = queue[index];
-                            final isCurrent = index == currentIndex;
+                            final isCurrent = index == currentIdx;
                             return ListTile(
                               leading: Container(
                                 width: 40,
@@ -114,7 +114,7 @@ class FullPlayerScreen extends StatelessWidget {
                                 ],
                               ),
                               onTap: () {
-                                player.audioService.seekToIndex(index);
+                                player.seekToIndex(index);
                                 Navigator.pop(ctx);
                               },
                             );

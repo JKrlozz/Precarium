@@ -33,8 +33,19 @@ class PlayerProvider extends ChangeNotifier {
       : 0.0;
   AudioPlayerService get audioService => _audioService;
 
+  List<Song> get displayQueue {
+    if (!_isShuffled) return List.unmodifiable(_queue);
+    return _audioService.displayQueue;
+  }
+
+  int get displayIndex {
+    if (!_isShuffled) return _currentIndex;
+    return _audioService.displayIndex;
+  }
+
   Future<void> init() async {
     await _audioService.init();
+    _audioService.onSongChanged = _syncFromService;
 
     _positionSub = _audioService.positionStream.listen((pos) {
       _position = pos;
@@ -84,7 +95,15 @@ class PlayerProvider extends ChangeNotifier {
   }
 
   void removeFromQueue(int index) {
+    if (_isShuffled) {
+      final realIndex = _audioService.displayQueue.length > index
+          ? _queue.indexOf(_audioService.displayQueue[index])
+          : -1;
+      if (realIndex < 0) return;
+      index = realIndex;
+    }
     if (index < 0 || index >= _queue.length) return;
+    _audioService.removeFromQueue(index);
     _queue.removeAt(index);
     if (_queue.isEmpty) {
       clearQueue();
@@ -133,13 +152,21 @@ class PlayerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> toggleShuffle() async {
+  Future<void> seekToIndex(int index) async {
+    final targetIndex = _isShuffled && _audioService.displayQueue.length > index
+        ? _queue.indexOf(_audioService.displayQueue[index])
+        : index;
+    await _audioService.seekToIndex(targetIndex >= 0 ? targetIndex : index);
+    _syncFromService();
+  }
+
+  void toggleShuffle() {
     _audioService.toggleShuffle();
     _isShuffled = _audioService.isShuffled;
     notifyListeners();
   }
 
-  Future<void> cycleRepeatMode() async {
+  void cycleRepeatMode() {
     _audioService.cycleRepeatMode();
     _repeatMode = _audioService.repeatMode;
     notifyListeners();

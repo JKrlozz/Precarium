@@ -341,7 +341,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
         };
         return Expanded(
           child: GestureDetector(
-            onTap: () => setState(() => _currentTab = tab),
+            onTap: () => setState(() {
+              _currentTab = tab;
+              _searchController.clear();
+              _isSearching = false;
+            }),
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
@@ -450,9 +454,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Widget _buildArtistsView(LibraryProvider library) {
-    final artists = library.artists;
+    final query = _searchController.text.trim().toLowerCase();
+    final artists = query.isEmpty
+        ? library.artists
+        : library.artists.where((a) => a.toLowerCase().contains(query)).toList();
     if (artists.isEmpty) {
-      return const Center(child: Text('Sin artistas', style: TextStyle(color: AppTheme.textSecondary)));
+      return Center(
+        child: Text(
+          query.isEmpty ? 'Sin artistas' : 'Sin resultados para "$query"',
+          style: const TextStyle(color: AppTheme.textSecondary),
+        ),
+      );
     }
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 80),
@@ -477,9 +489,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Widget _buildAlbumsView(LibraryProvider library) {
-    final albums = library.albums;
+    final query = _searchController.text.trim().toLowerCase();
+    final albums = query.isEmpty
+        ? library.albums
+        : library.albums.where((a) => a.toLowerCase().contains(query)).toList();
     if (albums.isEmpty) {
-      return const Center(child: Text('Sin álbumes', style: TextStyle(color: AppTheme.textSecondary)));
+      return Center(
+        child: Text(
+          query.isEmpty ? 'Sin álbumes' : 'Sin resultados para "$query"',
+          style: const TextStyle(color: AppTheme.textSecondary),
+        ),
+      );
     }
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 80),
