@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../providers/backup_provider.dart';
+import '../providers/library_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/database_service.dart';
 import 'spotify_import_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -31,8 +34,8 @@ class SettingsScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Consumer<SettingsProvider>(
-        builder: (context, settings, _) {
+      body: Consumer2<SettingsProvider, BackupProvider>(
+        builder: (context, settings, backup, _) {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -53,6 +56,14 @@ class SettingsScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const SpotifyImportScreen()),
                 ),
               ),
+              const SizedBox(height: 24),
+              _SectionHeader(title: 'Copia de seguridad'),
+              const SizedBox(height: 8),
+              _BackupSection(backup: backup),
+              const SizedBox(height: 24),
+              _SectionHeader(title: 'Google Drive'),
+              const SizedBox(height: 8),
+              _DriveSection(backup: backup),
               const SizedBox(height: 24),
               _SectionHeader(title: 'Acerca de'),
               const SizedBox(height: 8),
@@ -215,6 +226,344 @@ class _SettingsButton extends StatelessWidget {
         subtitle: Text(subtitle, style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
         trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _BackupSection extends StatelessWidget {
+  final BackupProvider backup;
+  const _BackupSection({required this.backup});
+
+  Future<void> _onExport(BuildContext context) async {
+    try {
+      final library = context.read<LibraryProvider>();
+      final settings = context.read<SettingsProvider>();
+      final backupProv = context.read<BackupProvider>();
+      final playlists = await DatabaseService.getPlaylistRows();
+      final playlistSongs = await DatabaseService.getAllPlaylistSongRows();
+
+      await backupProv.exportBackup(
+            songs: library.songs,
+            playlists: playlists,
+            playlistSongs: playlistSongs,
+            themeMode: settings.themeMode.index,
+            primaryColor: settings.primaryColor.toARGB32(),
+          );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Copia de seguridad creada correctamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _onImport(BuildContext context) async {
+    try {
+      await context.read<BackupProvider>().importBackup(
+            onRestore: (songs, playlists, playlistSongs, settings) {
+              if (!context.mounted) return;
+              if (settings != null) {
+                final s = context.read<SettingsProvider>();
+                final themeModeIndex = settings['themeMode'] as int?;
+                final primaryColor = settings['primaryColor'] as int?;
+                if (themeModeIndex != null) {
+                  s.setThemeMode(ThemeMode.values[themeModeIndex.clamp(
+                      0, ThemeMode.values.length - 1)]);
+                }
+                if (primaryColor != null) {
+                  s.setPrimaryColor(Color(primaryColor));
+                }
+              }
+              context.read<LibraryProvider>().loadLibrary();
+            },
+          );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Restauración completada'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final lastBackup = backup.lastBackupDate;
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Respalda o restaura tus datos',
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          if (lastBackup != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Última copia: ${lastBackup.day.toString().padLeft(2, '0')}/${lastBackup.month.toString().padLeft(2, '0')}/${lastBackup.year}',
+              style: TextStyle(
+                fontSize: 11,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: backup.isExporting ? null : () => _onExport(context),
+                  icon: backup.isExporting
+                      ? const SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                        )
+                      : const Icon(Icons.upload, size: 18),
+                  label: Text(backup.isExporting ? 'Exportando...' : 'Exportar',
+                      style: const TextStyle(color: Colors.black)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.colorScheme.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: backup.isImporting ? null : () => _onImport(context),
+                  icon: backup.isImporting
+                      ? const SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.download, size: 18),
+                  label: Text(backup.isImporting ? 'Restaurando...' : 'Restaurar'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DriveSection extends StatelessWidget {
+  final BackupProvider backup;
+  const _DriveSection({required this.backup});
+
+  Future<void> _onConnect(BuildContext context) async {
+    try {
+      await context.read<BackupProvider>().connectToDrive();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Conectado a Google Drive'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _onDisconnect(BuildContext context) async {
+    await context.read<BackupProvider>().disconnectFromDrive();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Desconectado de Google Drive')),
+      );
+    }
+  }
+
+  Future<void> _onExportDrive(BuildContext context) async {
+    try {
+      final library = context.read<LibraryProvider>();
+      final settings = context.read<SettingsProvider>();
+      final backupProv = context.read<BackupProvider>();
+      final playlists = await DatabaseService.getPlaylistRows();
+      final playlistSongs = await DatabaseService.getAllPlaylistSongRows();
+
+      await backupProv.exportToDrive(
+        songs: library.songs,
+        playlists: playlists,
+        playlistSongs: playlistSongs,
+        themeMode: settings.themeMode.index,
+        primaryColor: settings.primaryColor.toARGB32(),
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Copia de seguridad subida a Drive'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _onImportDrive(BuildContext context) async {
+    try {
+      final backupProv = context.read<BackupProvider>();
+      final message = await backupProv.importFromDrive(
+        onRestore: (songs, playlists, playlistSongs, settings) {
+          if (!context.mounted) return;
+          if (settings != null) {
+            final s = context.read<SettingsProvider>();
+            final themeModeIndex = settings['themeMode'] as int?;
+            final primaryColor = settings['primaryColor'] as int?;
+            if (themeModeIndex != null) {
+              s.setThemeMode(ThemeMode.values[themeModeIndex.clamp(
+                  0, ThemeMode.values.length - 1)]);
+            }
+            if (primaryColor != null) {
+              s.setPrimaryColor(Color(primaryColor));
+            }
+          }
+          context.read<LibraryProvider>().loadLibrary();
+        },
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Conecta tu cuenta de Google para respaldar\ntus datos automáticamente en la nube',
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (backup.driveConnected) ...[
+            Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green, size: 18),
+                const SizedBox(width: 8),
+                Text('Conectado', style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14)),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => _onDisconnect(context),
+                  child: const Text('Desconectar', style: TextStyle(color: Colors.red)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: backup.isExporting ? null : () => _onExportDrive(context),
+                    icon: backup.isExporting
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                        : const Icon(Icons.cloud_upload, size: 18),
+                    label: Text(backup.isExporting ? 'Subiendo...' : 'Subir backup',
+                        style: const TextStyle(color: Colors.black)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: backup.isImporting ? null : () => _onImportDrive(context),
+                    icon: backup.isImporting
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.cloud_download, size: 18),
+                    label: Text(backup.isImporting ? 'Descargando...' : 'Restaurar'),
+                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
+                  ),
+                ),
+              ],
+            ),
+          ] else
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: backup.isDriveConnecting ? null : () => _onConnect(context),
+                icon: backup.isDriveConnecting
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                    : const Icon(Icons.login, size: 18),
+                label: Text(backup.isDriveConnecting ? 'Conectando...' : 'Iniciar sesión con Google',
+                    style: const TextStyle(color: Colors.black)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

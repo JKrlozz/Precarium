@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'providers/backup_provider.dart';
 import 'providers/library_provider.dart';
 import 'providers/player_provider.dart';
 import 'providers/search_provider.dart';
@@ -44,6 +45,7 @@ class _PrecariumAppState extends State<PrecariumApp> {
               ChangeNotifierProvider(create: (_) => PlayerProvider(_audioService)),
               ChangeNotifierProvider(create: (_) => SearchProvider()),
               ChangeNotifierProvider(create: (_) => DownloadProvider()),
+              ChangeNotifierProvider(create: (_) => BackupProvider()..load()),
             ],
             child: MaterialApp(
               title: 'Precarium',

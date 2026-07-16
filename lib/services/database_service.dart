@@ -68,6 +68,12 @@ class DatabaseService {
     );
   }
 
+  // Playlist songs - all rows
+  static Future<List<Map<String, dynamic>>> getAllPlaylistSongRows() async {
+    final db = await database;
+    return db.query('playlist_songs');
+  }
+
   // Songs
   static Future<List<Song>> getSongs() async {
     final db = await database;
