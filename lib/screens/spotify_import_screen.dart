@@ -453,23 +453,26 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Exporta tu playlist desde Exportify, Soundiiz,\nTuneMyMusic, Spotify Playlist Exporter, etc.',
+                'Exporta tu playlist desde Exportify (CSV o XLSX)\ny selecciona el archivo descargado',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
               ),
               const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: _isLoading ? null : _pickCsvFile,
-                icon: _isLoading
-                    ? const SizedBox(
-                        width: 18, height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                      )
-                    : const Icon(Icons.folder_open),
-                label: Text(_isLoading ? 'Leyendo archivo...' : 'Elegir archivo'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading ? null : _pickCsvFile,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                        )
+                      : const Icon(Icons.folder_open),
+                  label: Text(_isLoading ? 'Leyendo archivo...' : 'Importar', style: const TextStyle(color: Colors.black)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  ),
                 ),
               ),
             ],
