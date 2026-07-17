@@ -28,7 +28,6 @@ class ImportProvider extends ChangeNotifier {
   void cancelImport() {
     _cancelled = true;
     _isImporting = false;
-    _statusText = 'Importación cancelada';
     notifyListeners();
   }
 
@@ -40,6 +39,8 @@ class ImportProvider extends ChangeNotifier {
     required DownloadProvider downloadProvider,
     required LibraryProvider libraryProvider,
   }) async {
+    if (_isImporting) return;
+    _cancelled = false;
     _isImporting = true;
     _downloaded = 0;
     _failed = 0;
@@ -107,6 +108,7 @@ class ImportProvider extends ChangeNotifier {
   }
 
   void reset() {
+    _cancelled = false;
     _isImporting = false;
     _downloaded = 0;
     _failed = 0;

@@ -43,13 +43,6 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
   void initState() {
     super.initState();
     _spotify.loadTokens();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final import = context.read<ImportProvider>();
-      if (import.isImporting || import.total > 0) {
-        context.read<NavigationProvider>().switchToTab(2);
-        Navigator.popUntil(context, (route) => route.isFirst);
-      }
-    });
   }
 
   @override
