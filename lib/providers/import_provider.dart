@@ -9,6 +9,7 @@ class ImportProvider extends ChangeNotifier {
 
   bool _isImporting = false;
   bool get isImporting => _isImporting;
+  bool _cancelled = false;
 
   int _downloaded = 0;
   int get downloaded => _downloaded;
@@ -23,6 +24,13 @@ class ImportProvider extends ChangeNotifier {
 
   double get progress =>
       _total > 0 ? (_downloaded + _failed + _skipped) / _total : 0;
+
+  void cancelImport() {
+    _cancelled = true;
+    _isImporting = false;
+    _statusText = 'Importación cancelada';
+    notifyListeners();
+  }
 
   Future<void> startImport({
     required List<String> names,
@@ -41,6 +49,7 @@ class ImportProvider extends ChangeNotifier {
     notifyListeners();
 
     for (int i = 0; i < names.length; i++) {
+      if (_cancelled) break;
       _statusText = '(${i + 1}/$_total) Buscando ${names[i]}...';
       notifyListeners();
 
@@ -69,7 +78,14 @@ class ImportProvider extends ChangeNotifier {
       }
       notifyListeners();
 
+      if (_cancelled) break;
       await Future.delayed(const Duration(milliseconds: 2000));
+    }
+
+    if (_cancelled) {
+      _isImporting = false;
+      notifyListeners();
+      return;
     }
 
     _isImporting = false;
