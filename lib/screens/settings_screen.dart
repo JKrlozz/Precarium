@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../providers/backup_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/settings_provider.dart';
-import '../services/auto_backup_service.dart';
 import '../services/database_service.dart';
 import 'spotify_import_screen.dart';
 
@@ -65,10 +64,6 @@ class SettingsScreen extends StatelessWidget {
               _SectionHeader(title: 'Google Drive'),
               const SizedBox(height: 8),
               _DriveSection(backup: backup),
-              const SizedBox(height: 24),
-              _SectionHeader(title: 'Respaldo automático'),
-              const SizedBox(height: 8),
-              _AutoBackupSection(backup: backup),
               const SizedBox(height: 24),
               _SectionHeader(title: 'Acerca de'),
               const SizedBox(height: 8),
@@ -642,164 +637,6 @@ class _DriveSectionState extends State<_DriveSection> {
   }
 }
 
-class _AutoBackupSection extends StatefulWidget {
-  final BackupProvider backup;
-  const _AutoBackupSection({required this.backup});
-
-  @override
-  State<_AutoBackupSection> createState() => _AutoBackupSectionState();
-}
-
-class _AutoBackupSectionState extends State<_AutoBackupSection> {
-  bool _cancelled = false;
-  BackupProvider get _backup => widget.backup;
-
-  @override
-  void dispose() {
-    _cancelled = true;
-    super.dispose();
-  }
-
-  Future<void> _toggle(bool value) async {
-    if (!value) {
-      await AutoBackupService.cancel();
-      await _backup.saveAutoBackupSettings(
-        enabled: false,
-        type: _backup.autoBackupType,
-        hour: _backup.autoBackupHour,
-        minute: _backup.autoBackupMinute,
-      );
-      return;
-    }
-    await _showConfigDialog();
-  }
-
-  Future<void> _showConfigDialog() async {
-    String type = _backup.autoBackupType;
-    TimeOfDay time = TimeOfDay(
-      hour: _backup.autoBackupHour,
-      minute: _backup.autoBackupMinute,
-    );
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            title: const Text('Respaldo automático'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  initialValue: type,
-                  decoration: const InputDecoration(labelText: 'Tipo de respaldo'),
-                  items: const [
-                    DropdownMenuItem(value: 'light', child: Text('Ligero (config + canciones + listas)')),
-                    DropdownMenuItem(value: 'full', child: Text('Completo (incluye archivos de audio)')),
-                  ],
-                  onChanged: (v) => setDialogState(() => type = v ?? 'light'),
-                ),
-                const SizedBox(height: 16),
-                ListTile(
-                  leading: const Icon(Icons.schedule),
-                  title: const Text('Hora del día'),
-                  subtitle: Text(time.format(context)),
-                  onTap: () async {
-                    final picked = await showTimePicker(context: context, initialTime: time);
-                    if (picked != null) setDialogState(() => time = picked);
-                  },
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx, true);
-                },
-                child: const Text('Guardar'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-
-    if (result != true || !mounted) {
-      if (!_backup.autoBackupEnabled) setState(() {});
-      return;
-    }
-
-    await AutoBackupService.schedule(type, time.hour, time.minute);
-    await _backup.saveAutoBackupSettings(
-      enabled: true,
-      type: type,
-      hour: time.hour,
-      minute: time.minute,
-    );
-    if (!mounted || _cancelled) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Respaldo automático configurado'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Respaldo programado',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurface)),
-                    const SizedBox(height: 4),
-                    Text(
-                      _backup.autoBackupEnabled
-                          ? '${_backup.autoBackupType == 'light' ? 'Ligero' : 'Completo'} — ${_backup.autoBackupHour.toString().padLeft(2, '0')}:${_backup.autoBackupMinute.toString().padLeft(2, '0')} h'
-                          : 'Programa un respaldo diario automático',
-                      style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
-                    ),
-                  ],
-                ),
-              ),
-              Switch(
-                value: _backup.autoBackupEnabled,
-                onChanged: _toggle,
-              ),
-            ],
-          ),
-          if (_backup.autoBackupEnabled) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton.icon(
-                onPressed: _showConfigDialog,
-                icon: const Icon(Icons.edit, size: 16),
-                label: const Text('Cambiar configuración'),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 enum BackupChoice { config, songs, playlists, full }
 
 class _BackupChoiceDialog extends StatelessWidget {
@@ -837,13 +674,15 @@ class _BackupChoiceDialog extends StatelessWidget {
             subtitle: 'Estructura de tus listas',
             onTap: () => Navigator.pop(context, BackupChoice.playlists),
           ),
-          const Divider(height: 1),
-          _ChoiceTile(
-            icon: Icons.backup,
-            title: 'Completo',
-            subtitle: 'Configuración, canciones, listas y archivos de audio',
-            onTap: () => Navigator.pop(context, BackupChoice.full),
-          ),
+          if (isUpload) ...[
+            const Divider(height: 1),
+            _ChoiceTile(
+              icon: Icons.backup,
+              title: 'Completo',
+              subtitle: 'Configuración, canciones, listas y archivos de audio',
+              onTap: () => Navigator.pop(context, BackupChoice.full),
+            ),
+          ],
         ],
       ),
       actions: [
