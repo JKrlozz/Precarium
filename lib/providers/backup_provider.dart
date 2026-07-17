@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
@@ -12,10 +11,13 @@ import '../services/backup_service.dart';
 import '../services/database_service.dart';
 import '../services/drive_backup_service.dart';
 
-enum BackupType { config, songs, playlists }
-
 class BackupProvider extends ChangeNotifier {
   static const _lastBackupKey = 'last_backup_timestamp';
+
+  static const _autoEnabledKey = 'auto_backup_enabled';
+  static const _autoTypeKey = 'auto_backup_type';
+  static const _autoHourKey = 'auto_backup_hour';
+  static const _autoMinuteKey = 'auto_backup_minute';
 
   final DriveBackupService _driveService = DriveBackupService();
 
@@ -25,6 +27,11 @@ class BackupProvider extends ChangeNotifier {
   DateTime? _lastBackupDate;
   bool _driveConnected = false;
 
+  bool _autoBackupEnabled = false;
+  String _autoBackupType = 'light';
+  int _autoBackupHour = 3;
+  int _autoBackupMinute = 0;
+
   bool get isExporting => _isExporting;
   bool get isImporting => _isImporting;
   bool get isDriveConnecting => _isDriveConnecting;
@@ -32,11 +39,15 @@ class BackupProvider extends ChangeNotifier {
   bool get driveConnected => _driveConnected;
   DriveBackupService get driveService => _driveService;
 
-  // Full backup progress
   double _fullProgress = 0;
   String _fullStatus = '';
   double get fullProgress => _fullProgress;
   String get fullStatus => _fullStatus;
+
+  bool get autoBackupEnabled => _autoBackupEnabled;
+  String get autoBackupType => _autoBackupType;
+  int get autoBackupHour => _autoBackupHour;
+  int get autoBackupMinute => _autoBackupMinute;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -45,6 +56,28 @@ class BackupProvider extends ChangeNotifier {
       _lastBackupDate = DateTime.fromMillisecondsSinceEpoch(ts);
     }
     _driveConnected = await _driveService.tryRestore();
+    _autoBackupEnabled = prefs.getBool(_autoEnabledKey) ?? false;
+    _autoBackupType = prefs.getString(_autoTypeKey) ?? 'light';
+    _autoBackupHour = prefs.getInt(_autoHourKey) ?? 3;
+    _autoBackupMinute = prefs.getInt(_autoMinuteKey) ?? 0;
+    notifyListeners();
+  }
+
+  Future<void> saveAutoBackupSettings({
+    required bool enabled,
+    required String type,
+    required int hour,
+    required int minute,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_autoEnabledKey, enabled);
+    await prefs.setString(_autoTypeKey, type);
+    await prefs.setInt(_autoHourKey, hour);
+    await prefs.setInt(_autoMinuteKey, minute);
+    _autoBackupEnabled = enabled;
+    _autoBackupType = type;
+    _autoBackupHour = hour;
+    _autoBackupMinute = minute;
     notifyListeners();
   }
 
@@ -55,7 +88,7 @@ class BackupProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Local file backup (unchanged) ──
+  // ── Local file backup ──
 
   Future<void> exportBackup({
     required List<Song> songs,
@@ -74,10 +107,7 @@ class BackupProvider extends ChangeNotifier {
         songs: songs,
         playlists: playlists,
         playlistSongs: playlistSongs,
-        settings: {
-          'themeMode': themeMode,
-          'primaryColor': primaryColor,
-        },
+        settings: {'themeMode': themeMode, 'primaryColor': primaryColor},
       );
 
       final file = await BackupService.createBackupFile(data);
@@ -137,7 +167,7 @@ class BackupProvider extends ChangeNotifier {
     }
   }
 
-  // ── Google Drive ──
+  // ── Google Drive auth ──
 
   Future<void> connectToDrive() async {
     _isDriveConnecting = true;
@@ -160,10 +190,21 @@ class BackupProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Drive backup by type ──
+  // ── Helpers ──
 
-  Future<String> _getDatePrefix() =>
-      Future.value('Precarium_${DateTime.now().toIso8601String().split('T').first}');
+  Future<String> _backupFolder() => _driveService.ensureBackupFolder();
+
+  Future<String> _typeFolder(String type) async {
+    final root = await _backupFolder();
+    return _driveService.ensureTypeFolder(root, type);
+  }
+
+  Future<void> _clearAndUpload(String folderId, String fileName, String jsonContent) async {
+    await _driveService.deleteAllFilesInFolder(folderId);
+    await _driveService.uploadJsonFile(folderId, fileName, jsonContent);
+  }
+
+  // ── Drive backup by type ──
 
   Future<void> uploadConfigToDrive({
     required int themeMode,
@@ -173,16 +214,17 @@ class BackupProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final datePrefix = await _getDatePrefix();
-      final folderId = await _driveService.ensureBackupFolder();
-      final jsonContent = const JsonEncoder.withIndent('  ').convert({
-        'version': 1,
-        'exportedAt': DateTime.now().toIso8601String(),
-        'themeMode': themeMode,
-        'primaryColor': primaryColor,
-      });
-      await _driveService.uploadJsonFile(
-          folderId, '${datePrefix}_Config.json', jsonContent);
+      final folderId = await _typeFolder('Config');
+      await _clearAndUpload(
+        folderId,
+        'config.json',
+        const JsonEncoder.withIndent('  ').convert({
+          'version': 1,
+          'exportedAt': DateTime.now().toIso8601String(),
+          'themeMode': themeMode,
+          'primaryColor': primaryColor,
+        }),
+      );
       await _saveLastBackupDate();
     } catch (e) {
       rethrow;
@@ -199,15 +241,16 @@ class BackupProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final datePrefix = await _getDatePrefix();
-      final folderId = await _driveService.ensureBackupFolder();
-      final jsonContent = const JsonEncoder.withIndent('  ').convert({
-        'version': 1,
-        'exportedAt': DateTime.now().toIso8601String(),
-        'songs': songs.map((s) => s.toJson()).toList(),
-      });
-      await _driveService.uploadJsonFile(
-          folderId, '${datePrefix}_Songs.json', jsonContent);
+      final folderId = await _typeFolder('Songs');
+      await _clearAndUpload(
+        folderId,
+        'songs.json',
+        const JsonEncoder.withIndent('  ').convert({
+          'version': 1,
+          'exportedAt': DateTime.now().toIso8601String(),
+          'songs': songs.map((s) => s.toJson()).toList(),
+        }),
+      );
       await _saveLastBackupDate();
     } catch (e) {
       rethrow;
@@ -225,16 +268,17 @@ class BackupProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final datePrefix = await _getDatePrefix();
-      final folderId = await _driveService.ensureBackupFolder();
-      final jsonContent = const JsonEncoder.withIndent('  ').convert({
-        'version': 1,
-        'exportedAt': DateTime.now().toIso8601String(),
-        'playlists': playlists,
-        'playlistSongs': playlistSongs,
-      });
-      await _driveService.uploadJsonFile(
-          folderId, '${datePrefix}_Playlists.json', jsonContent);
+      final folderId = await _typeFolder('Playlists');
+      await _clearAndUpload(
+        folderId,
+        'playlists.json',
+        const JsonEncoder.withIndent('  ').convert({
+          'version': 1,
+          'exportedAt': DateTime.now().toIso8601String(),
+          'playlists': playlists,
+          'playlistSongs': playlistSongs,
+        }),
+      );
       await _saveLastBackupDate();
     } catch (e) {
       rethrow;
@@ -259,57 +303,53 @@ class BackupProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final datePrefix = await _getDatePrefix();
-      final backupFolderId = await _driveService.ensureBackupFolder();
+      final fullFolderId = await _typeFolder('Full');
+      await _driveService.deleteAllFilesInFolder(fullFolderId);
 
       _fullStatus = 'Subiendo configuración...';
       _fullProgress = 0.05;
       notifyListeners();
-
       await _driveService.uploadJsonFile(
-          backupFolderId, '${datePrefix}_Config.json',
+          fullFolderId, 'config.json',
           const JsonEncoder.withIndent('  ').convert({
-            'version': 1,
-            'exportedAt': DateTime.now().toIso8601String(),
-            'themeMode': themeMode,
-            'primaryColor': primaryColor,
+            'version': 1, 'exportedAt': DateTime.now().toIso8601String(),
+            'themeMode': themeMode, 'primaryColor': primaryColor,
           }));
 
       _fullStatus = 'Subiendo canciones...';
       _fullProgress = 0.1;
       notifyListeners();
-
       await _driveService.uploadJsonFile(
-          backupFolderId, '${datePrefix}_Songs.json',
+          fullFolderId, 'songs.json',
           const JsonEncoder.withIndent('  ').convert({
-            'version': 1,
-            'exportedAt': DateTime.now().toIso8601String(),
+            'version': 1, 'exportedAt': DateTime.now().toIso8601String(),
             'songs': songs.map((s) => s.toJson()).toList(),
           }));
 
       _fullStatus = 'Subiendo listas de reproducción...';
       _fullProgress = 0.15;
       notifyListeners();
-
       await _driveService.uploadJsonFile(
-          backupFolderId, '${datePrefix}_Playlists.json',
+          fullFolderId, 'playlists.json',
           const JsonEncoder.withIndent('  ').convert({
-            'version': 1,
-            'exportedAt': DateTime.now().toIso8601String(),
-            'playlists': playlists,
-            'playlistSongs': playlistSongs,
+            'version': 1, 'exportedAt': DateTime.now().toIso8601String(),
+            'playlists': playlists, 'playlistSongs': playlistSongs,
           }));
 
       _fullStatus = 'Preparando canciones descargadas...';
       _fullProgress = 0.2;
       notifyListeners();
 
-      final songsFolderId =
-          await _driveService.ensureSongsFolder(backupFolderId);
+      final songsFolderId = await _driveService.ensureSongsFolder(fullFolderId);
+      await _driveService.deleteAllFilesInFolder(songsFolderId);
 
-      final localSongs = songs
-          .where((s) => s.filePath.isNotEmpty && File(s.filePath).existsSync())
-          .toList();
+      final seen = <String>{};
+      final localSongs = <Song>[];
+      for (final s in songs) {
+        if (s.filePath.isNotEmpty && File(s.filePath).existsSync() && seen.add(s.filePath)) {
+          localSongs.add(s);
+        }
+      }
 
       if (localSongs.isEmpty) {
         _fullStatus = 'No hay canciones descargadas para respaldar';
@@ -318,23 +358,17 @@ class BackupProvider extends ChangeNotifier {
       } else {
         for (int i = 0; i < localSongs.length; i++) {
           final song = localSongs[i];
-          final progress = 0.2 + (0.8 * (i / localSongs.length));
-          final fileName = p.basename(song.filePath);
-
-          _fullStatus =
-              'Subiendo canción ${i + 1} de ${localSongs.length}: ${song.title}';
-          _fullProgress = progress;
+          _fullStatus = 'Subiendo canción ${i + 1} de ${localSongs.length}: ${song.title}';
+          _fullProgress = 0.2 + (0.8 * (i / localSongs.length));
           notifyListeners();
 
           try {
             await _driveService.uploadSongFile(
-                songsFolderId, song.filePath, fileName);
-          } catch (_) {
-          }
+                songsFolderId, song.filePath, '${song.id}.${_extension(song.filePath)}');
+          } catch (_) {}
         }
 
-        _fullStatus =
-            'Respaldo completo finalizado: ${localSongs.length} canciones';
+        _fullStatus = 'Respaldo completo finalizado: ${localSongs.length} canciones';
         _fullProgress = 1.0;
         notifyListeners();
       }
@@ -348,31 +382,21 @@ class BackupProvider extends ChangeNotifier {
     }
   }
 
-  // ── Drive restore by type ──
+  String _extension(String path) {
+    final dot = path.lastIndexOf('.');
+    return dot >= 0 ? path.substring(dot + 1) : 'm4a';
+  }
 
-  Future<Map<String, dynamic>?> downloadConfigFromDrive() async {
-    _isImporting = true;
-    notifyListeners();
+  // ── Drive restore helpers ──
 
-    try {
-      final folderId = await _driveService.ensureBackupFolder();
-      final fileId =
-          await _driveService.findLatestJsonFile(folderId, 'Precarium_Config');
-      if (fileId == null) {
-        throw Exception('No se encontraron archivos de configuración.');
-      }
-      final jsonContent = await _driveService.downloadJsonFile(fileId);
-      if (jsonContent == null) {
-        throw Exception('Error al descargar configuración.');
-      }
-      final decoded = json.decode(jsonContent) as Map<String, dynamic>;
-      return decoded;
-    } catch (e) {
-      rethrow;
-    } finally {
-      _isImporting = false;
-      notifyListeners();
-    }
+  Future<String?> _findJsonFile(String typeFolder, String name) async {
+    return _driveService.findFileByName(typeFolder, name);
+  }
+
+  Future<Map<String, dynamic>?> _downloadAndParse(String fileId) async {
+    final raw = await _driveService.downloadJsonFile(fileId);
+    if (raw == null) return null;
+    return jsonDecode(raw) as Map<String, dynamic>;
   }
 
   Future<void> _restoreSongsToDb(List<Song> songs) async {
@@ -385,29 +409,37 @@ class BackupProvider extends ChangeNotifier {
     await batch.commit(noResult: true);
   }
 
-  Future<void> restoreSongsToDb(List<Song> songs) => _restoreSongsToDb(songs);
+  Future<void> _restorePlaylistsToDb(
+      List<Map<String, dynamic>> playlists,
+      List<Map<String, dynamic>> playlistSongs) async {
+    final db = await DatabaseService.database;
+    final batch = db.batch();
+    for (final p in playlists) {
+      batch.insert('playlists', {
+        'id': p['id'], 'name': p['name'],
+        'createdAt': p['createdAt'], 'updatedAt': p['updatedAt'],
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    for (final ps in playlistSongs) {
+      batch.insert('playlist_songs', {
+        'playlistId': ps['playlistId'], 'songId': ps['songId'],
+        'addedAt': ps['addedAt'],
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
+  }
 
-  Future<void> restoreConfigFromDrive() async {
+  // ── Drive restore by type ──
+
+  Future<Map<String, dynamic>?> downloadConfigFromDrive() async {
     _isImporting = true;
     notifyListeners();
 
     try {
-      final folderId = await _driveService.ensureBackupFolder();
-      final fileId = await _driveService.findLatestJsonFile(
-          folderId, 'Precarium_Config');
-      if (fileId == null) {
-        throw Exception('No se encontraron archivos de configuración.');
-      }
-      final jsonContent = await _driveService.downloadJsonFile(fileId);
-      if (jsonContent == null) {
-        throw Exception('Error al descargar configuración.');
-      }
-      final decoded = json.decode(jsonContent) as Map<String, dynamic>;
-      final themeModeIndex = decoded['themeMode'] as int?;
-      final primaryColor = decoded['primaryColor'] as int?;
-      if (themeModeIndex != null || primaryColor != null) {
-        // stored for external application
-      }
+      final folderId = await _typeFolder('Config');
+      final fileId = await _findJsonFile(folderId, 'config.json');
+      if (fileId == null) throw Exception('No se encontró configuración.');
+      return _downloadAndParse(fileId);
     } catch (e) {
       rethrow;
     } finally {
@@ -421,18 +453,12 @@ class BackupProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final folderId = await _driveService.ensureBackupFolder();
-      final fileId = await _driveService.findLatestJsonFile(
-          folderId, 'Precarium_Songs');
-      if (fileId == null) {
-        throw Exception('No se encontraron archivos de canciones.');
-      }
-      final jsonContent = await _driveService.downloadJsonFile(fileId);
-      if (jsonContent == null) {
-        throw Exception('Error al descargar canciones.');
-      }
-      final decoded = json.decode(jsonContent) as Map<String, dynamic>;
-      final songsList = decoded['songs'] as List<dynamic>? ?? [];
+      final folderId = await _typeFolder('Songs');
+      final fileId = await _findJsonFile(folderId, 'songs.json');
+      if (fileId == null) throw Exception('No se encontraron canciones.');
+      final data = await _downloadAndParse(fileId);
+      if (data == null) throw Exception('Error al descargar canciones.');
+      final songsList = data['songs'] as List<dynamic>? ?? [];
       final songs = songsList
           .map((e) => Song.fromJson(e as Map<String, dynamic>))
           .toList();
@@ -450,26 +476,16 @@ class BackupProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final folderId = await _driveService.ensureBackupFolder();
-      final fileId = await _driveService.findLatestJsonFile(
-          folderId, 'Precarium_Playlists');
-      if (fileId == null) {
-        throw Exception('No se encontraron archivos de listas.');
-      }
-      final jsonContent = await _driveService.downloadJsonFile(fileId);
-      if (jsonContent == null) {
-        throw Exception('Error al descargar listas.');
-      }
-      final decoded = json.decode(jsonContent) as Map<String, dynamic>;
-      final playlistsList = decoded['playlists'] as List<dynamic>? ?? [];
-      final playlistSongsList = decoded['playlistSongs'] as List<dynamic>? ?? [];
+      final folderId = await _typeFolder('Playlists');
+      final fileId = await _findJsonFile(folderId, 'playlists.json');
+      if (fileId == null) throw Exception('No se encontraron listas.');
+      final data = await _downloadAndParse(fileId);
+      if (data == null) throw Exception('Error al descargar listas.');
+      final playlistsList = data['playlists'] as List<dynamic>? ?? [];
+      final playlistSongsList = data['playlistSongs'] as List<dynamic>? ?? [];
       await _restorePlaylistsToDb(
-        playlistsList
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .toList(),
-        playlistSongsList
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .toList(),
+        playlistsList.map((e) => Map<String, dynamic>.from(e as Map)).toList(),
+        playlistSongsList.map((e) => Map<String, dynamic>.from(e as Map)).toList(),
       );
     } catch (e) {
       rethrow;
@@ -477,29 +493,6 @@ class BackupProvider extends ChangeNotifier {
       _isImporting = false;
       notifyListeners();
     }
-  }
-
-  Future<void> _restorePlaylistsToDb(
-      List<Map<String, dynamic>> playlists,
-      List<Map<String, dynamic>> playlistSongs) async {
-    final db = await DatabaseService.database;
-    final batch = db.batch();
-    for (final p in playlists) {
-      batch.insert('playlists', {
-        'id': p['id'],
-        'name': p['name'],
-        'createdAt': p['createdAt'],
-        'updatedAt': p['updatedAt'],
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
-    }
-    for (final ps in playlistSongs) {
-      batch.insert('playlist_songs', {
-        'playlistId': ps['playlistId'],
-        'songId': ps['songId'],
-        'addedAt': ps['addedAt'],
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
-    }
-    await batch.commit(noResult: true);
   }
 
   // ── Full restore ──
@@ -511,71 +504,47 @@ class BackupProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final backupFolderId = await _driveService.ensureBackupFolder();
-      final songsFolderId =
-          await _driveService.ensureSongsFolder(backupFolderId);
+      final fullFolderId = await _typeFolder('Full');
 
-      _fullStatus = 'Descargando configuración...';
+      _fullStatus = 'Restaurando configuración...';
       _fullProgress = 0.05;
       notifyListeners();
 
-      int restoredCount = 0;
-      final configFileId = await _driveService.findLatestJsonFile(
-          backupFolderId, 'Precarium_');
-
-      if (configFileId != null) {
-        final configJson =
-            await _driveService.downloadJsonFile(configFileId);
-        if (configJson != null) {
-          restoredCount++;
-        }
+      final configId = await _findJsonFile(fullFolderId, 'config.json');
+      if (configId != null) {
+        await _downloadAndParse(configId);
       }
 
-      _fullStatus = 'Descargando canciones...';
+      _fullStatus = 'Restaurando canciones...';
       _fullProgress = 0.1;
       notifyListeners();
 
-      final songsFileId = await _driveService.findLatestJsonFile(
-          backupFolderId, 'Precarium_');
-      List<Song> songs = [];
-      if (songsFileId != null) {
-        final songsJson = await _driveService.downloadJsonFile(songsFileId);
-        if (songsJson != null) {
-          final decoded = json.decode(songsJson) as Map<String, dynamic>;
-          final songsList = decoded['songs'] as List<dynamic>? ?? [];
-          songs = songsList
+      final songsId = await _findJsonFile(fullFolderId, 'songs.json');
+      if (songsId != null) {
+        final data = await _downloadAndParse(songsId);
+        if (data != null) {
+          final songsList = data['songs'] as List<dynamic>? ?? [];
+          final songs = songsList
               .map((e) => Song.fromJson(e as Map<String, dynamic>))
               .toList();
           await _restoreSongsToDb(songs);
-          restoredCount++;
         }
       }
 
-      _fullStatus = 'Descargando listas de reproducción...';
+      _fullStatus = 'Restaurando listas de reproducción...';
       _fullProgress = 0.15;
       notifyListeners();
 
-      final playlistsFileId = await _driveService.findLatestJsonFile(
-          backupFolderId, 'Precarium_');
-      if (playlistsFileId != null) {
-        final playlistsJson =
-            await _driveService.downloadJsonFile(playlistsFileId);
-        if (playlistsJson != null) {
-          final decoded =
-              json.decode(playlistsJson) as Map<String, dynamic>;
-          final playlistsList =
-              decoded['playlists'] as List<dynamic>? ?? [];
-          final playlistSongsList =
-              decoded['playlistSongs'] as List<dynamic>? ?? [];
+      final playlistsId = await _findJsonFile(fullFolderId, 'playlists.json');
+      if (playlistsId != null) {
+        final data = await _downloadAndParse(playlistsId);
+        if (data != null) {
+          final playlistsList = data['playlists'] as List<dynamic>? ?? [];
+          final playlistSongsList = data['playlistSongs'] as List<dynamic>? ?? [];
           await _restorePlaylistsToDb(
-            playlistsList
-                .map((e) => Map<String, dynamic>.from(e as Map))
-                .toList(),
-            playlistSongsList
-                .map((e) => Map<String, dynamic>.from(e as Map))
-                .toList(),
+            playlistsList.map((e) => Map<String, dynamic>.from(e as Map)).toList(),
+            playlistSongsList.map((e) => Map<String, dynamic>.from(e as Map)).toList(),
           );
-          restoredCount++;
         }
       }
 
@@ -583,36 +552,32 @@ class BackupProvider extends ChangeNotifier {
       _fullProgress = 0.2;
       notifyListeners();
 
+      final songsFolderId = await _driveService.ensureSongsFolder(fullFolderId);
       final songFiles = await _driveService.listSongFiles(songsFolderId);
-      final destDir = await _getSongsDirectory();
+      final appDir = await _getSongsDirectory();
 
       if (songFiles.isEmpty) {
         _fullStatus = 'No hay archivos de audio en Drive';
       } else {
         for (int i = 0; i < songFiles.length; i++) {
-          final fileInfo = songFiles[i];
-          final fileId = fileInfo['id'] as String;
-          final fileName = fileInfo['name'] as String;
-          final progress = 0.2 + (0.8 * (i / songFiles.length));
-          final destPath = '${destDir.path}${Platform.pathSeparator}$fileName';
-
-          _fullStatus =
-              'Descargando archivo ${i + 1} de ${songFiles.length}: $fileName';
-          _fullProgress = progress;
+          final info = songFiles[i];
+          final fileId = info['id'] as String;
+          final fileName = info['name'] as String;
+          _fullStatus = 'Descargando archivo ${i + 1} de ${songFiles.length}: $fileName';
+          _fullProgress = 0.2 + (0.8 * (i / songFiles.length));
           notifyListeners();
 
           try {
-            await _driveService.downloadSongFile(fileId, destPath);
-          } catch (_) {
-          }
+            await _driveService.downloadSongFile(
+                fileId, '${appDir.path}${Platform.pathSeparator}$fileName');
+          } catch (_) {}
         }
-        _fullStatus =
-            'Restauración completa: ${songFiles.length} archivos descargados';
+        _fullStatus = 'Restauración completa: ${songFiles.length} archivos descargados';
       }
 
       _fullProgress = 1.0;
       notifyListeners();
-      return 'Restauración completada: $restoredCount archivos, ${songFiles.length} canciones';
+      return 'Restauración completada: ${songFiles.length} canciones';
     } catch (e) {
       rethrow;
     } finally {
