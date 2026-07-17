@@ -14,6 +14,8 @@ import 'screens/downloads_screen.dart';
 import 'widgets/mini_player.dart';
 import 'theme/app_theme.dart';
 import 'services/audio_player_service.dart';
+import 'services/auto_backup_service.dart';
+import 'services/database_service.dart';
 import 'services/media_notification_service.dart';
 
 class PrecariumApp extends StatefulWidget {
@@ -93,7 +95,71 @@ class _MainShellState extends State<MainShell> {
       context.read<DownloadProvider>().init(
         onDownloadComplete: () => context.read<LibraryProvider>().loadLibrary(),
       );
+      _initAutoBackup();
     });
+  }
+
+  Future<void> _initAutoBackup() async {
+    AutoBackupService.setCallback((type) async {
+      if (!mounted) return;
+      final backupProv = context.read<BackupProvider>();
+      final library = context.read<LibraryProvider>();
+      final settings = context.read<SettingsProvider>();
+      final playlists = await DatabaseService.getPlaylistRows();
+      final playlistSongs = await DatabaseService.getAllPlaylistSongRows();
+      if (type == 'full') {
+        await backupProv.uploadCompletoBackup(
+          songs: library.songs,
+          playlists: playlists,
+          playlistSongs: playlistSongs,
+          themeMode: settings.themeMode.index,
+          primaryColor: settings.primaryColor.toARGB32(),
+        );
+      } else {
+        await backupProv.uploadLigeroBackup(
+          songs: library.songs,
+          playlists: playlists,
+          playlistSongs: playlistSongs,
+          themeMode: settings.themeMode.index,
+          primaryColor: settings.primaryColor.toARGB32(),
+        );
+      }
+    });
+
+    final pending = await AutoBackupService.consumePendingFlag();
+    if (pending) {
+      final backupProv = context.read<BackupProvider>();
+      final library = context.read<LibraryProvider>();
+      final settings = context.read<SettingsProvider>();
+      final playlists = await DatabaseService.getPlaylistRows();
+      final playlistSongs = await DatabaseService.getAllPlaylistSongRows();
+      final type = backupProv.autoBackupType;
+      if (type == 'full') {
+        await backupProv.uploadCompletoBackup(
+          songs: library.songs,
+          playlists: playlists,
+          playlistSongs: playlistSongs,
+          themeMode: settings.themeMode.index,
+          primaryColor: settings.primaryColor.toARGB32(),
+        );
+      } else {
+        await backupProv.uploadLigeroBackup(
+          songs: library.songs,
+          playlists: playlists,
+          playlistSongs: playlistSongs,
+          themeMode: settings.themeMode.index,
+          primaryColor: settings.primaryColor.toARGB32(),
+        );
+      }
+    }
+
+    final backupProv = context.read<BackupProvider>();
+    if (backupProv.autoBackupEnabled) {
+      AutoBackupService.scheduleNext(
+        hour: backupProv.autoBackupHour,
+        minute: backupProv.autoBackupMinute,
+      );
+    }
   }
 
   @override

@@ -126,6 +126,26 @@ class DriveBackupService {
     }
   }
 
+  Future<String?> findBackupFolder() async {
+    final headers = await _getAuthHeaders();
+    final q = 'name=\'${Uri.encodeQueryComponent(_backupFolder)}\''
+        ' and mimeType=\'application/vnd.google-apps.folder\' and trashed=false';
+    final response = await http.get(
+      Uri.parse('$_driveApi/files?q=$q&fields=files(id)'),
+      headers: headers,
+    );
+    if (response.statusCode != 200) return null;
+    final data = json.decode(response.body) as Map<String, dynamic>;
+    final files = data['files'] as List<dynamic>? ?? [];
+    if (files.isEmpty) return null;
+    return (files.first as Map<String, dynamic>)['id'] as String;
+  }
+
+  Future<void> deleteFolder(String folderId) async {
+    final headers = await _getAuthHeaders();
+    await http.delete(Uri.parse('$_driveApi/files/$folderId'), headers: headers);
+  }
+
   // ── JSON file operations ──
 
   Future<String> uploadJsonFile(String folderId, String fileName, String jsonContent) async {

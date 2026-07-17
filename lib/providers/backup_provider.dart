@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/song.dart';
+import '../services/auto_backup_service.dart';
 import '../services/backup_service.dart';
 import '../services/database_service.dart';
 import '../services/drive_backup_service.dart';
@@ -60,6 +61,16 @@ class BackupProvider extends ChangeNotifier {
     _autoBackupType = prefs.getString(_autoTypeKey) ?? 'light';
     _autoBackupHour = prefs.getInt(_autoHourKey) ?? 3;
     _autoBackupMinute = prefs.getInt(_autoMinuteKey) ?? 0;
+    if (_autoBackupEnabled) {
+      await AutoBackupService.saveSettings(
+        enabled: true,
+        type: _autoBackupType,
+        hour: _autoBackupHour,
+        minute: _autoBackupMinute,
+      );
+      AutoBackupService.scheduleNext(hour: _autoBackupHour, minute: _autoBackupMinute);
+      await AutoBackupService.scheduleAlarm(_autoBackupHour, _autoBackupMinute);
+    }
     notifyListeners();
   }
 
@@ -69,22 +80,35 @@ class BackupProvider extends ChangeNotifier {
     required int hour,
     required int minute,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_autoEnabledKey, enabled);
-    await prefs.setString(_autoTypeKey, type);
-    await prefs.setInt(_autoHourKey, hour);
-    await prefs.setInt(_autoMinuteKey, minute);
+    await AutoBackupService.saveSettings(
+      enabled: enabled,
+      type: type,
+      hour: hour,
+      minute: minute,
+    );
     _autoBackupEnabled = enabled;
     _autoBackupType = type;
     _autoBackupHour = hour;
     _autoBackupMinute = minute;
+    if (enabled) {
+      AutoBackupService.scheduleNext(hour: hour, minute: minute);
+      await AutoBackupService.scheduleAlarm(hour, minute);
+    } else {
+      AutoBackupService.cancelTimer();
+      await AutoBackupService.cancelAlarm();
+    }
     notifyListeners();
   }
 
-  Future<void> _saveLastBackupDate() async {
+  Future<void> _saveLastBackupDate({bool clear = false}) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_lastBackupKey, DateTime.now().millisecondsSinceEpoch);
-    _lastBackupDate = DateTime.now();
+    if (clear) {
+      await prefs.remove(_lastBackupKey);
+      _lastBackupDate = null;
+    } else {
+      await prefs.setInt(_lastBackupKey, DateTime.now().millisecondsSinceEpoch);
+      _lastBackupDate = DateTime.now();
+    }
     notifyListeners();
   }
 
@@ -629,5 +653,29 @@ class BackupProvider extends ChangeNotifier {
     final dir = Directory('${appDir.path}${Platform.pathSeparator}music');
     if (!await dir.exists()) await dir.create(recursive: true);
     return dir;
+  }
+
+  Future<void> purgeAllBackupData() async {
+    _isExporting = true;
+    _fullProgress = 0;
+    _fullStatus = 'Eliminando datos de respaldo...';
+    notifyListeners();
+
+    try {
+      final folderId = await _driveService.findBackupFolder();
+      if (folderId == null) {
+        throw Exception('No se encontraron datos de respaldo en Drive.');
+      }
+      await _driveService.deleteFolder(folderId);
+      await _saveLastBackupDate(clear: true);
+      _fullStatus = 'Datos de respaldo eliminados de Drive';
+      _fullProgress = 1.0;
+      notifyListeners();
+    } catch (e) {
+      rethrow;
+    } finally {
+      _isExporting = false;
+      notifyListeners();
+    }
   }
 }

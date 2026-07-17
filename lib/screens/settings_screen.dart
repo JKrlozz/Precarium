@@ -5,7 +5,6 @@ import '../providers/download_provider.dart';
 import '../providers/import_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/settings_provider.dart';
-import '../services/auto_backup_service.dart';
 import '../services/database_service.dart';
 import 'spotify_import_screen.dart';
 
@@ -278,6 +277,68 @@ class _DriveSectionState extends State<_DriveSection> {
     );
   }
 
+  Future<void> _onPurge() async {
+    final first = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Eliminar todos los respaldos?'),
+        content: const Text(
+          'Se borrarán todos tus datos de respaldo en Google Drive. Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Sí, eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (first != true || !mounted || _cancelled) return;
+
+    final second = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Estás completamente seguro?'),
+        content: const Text(
+          'Esta es tu última oportunidad. Todos los archivos de respaldo en Drive serán eliminados permanentemente.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No, conservar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Sí, purgar todo'),
+          ),
+        ],
+      ),
+    );
+    if (second != true || !mounted || _cancelled) return;
+
+    try {
+      await context.read<BackupProvider>().purgeAllBackupData();
+      if (!mounted || _cancelled) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Datos de respaldo eliminados de Drive'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted || _cancelled) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   Future<void> _showBackupTypeDialog() async {
     final result = await showDialog<String>(
       context: context,
@@ -459,6 +520,20 @@ class _DriveSectionState extends State<_DriveSection> {
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _onPurge,
+                  icon: const Icon(Icons.delete_forever, size: 18),
+                  label: const Text('Purgar'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
             ],
           ] else
             SizedBox(
@@ -502,7 +577,6 @@ class _AutoBackupSectionState extends State<_AutoBackupSection> {
 
   Future<void> _toggle(bool value) async {
     if (!value) {
-      await AutoBackupService.disable();
       await _backup.saveAutoBackupSettings(
         enabled: false,
         type: _backup.autoBackupType,
@@ -569,12 +643,6 @@ class _AutoBackupSectionState extends State<_AutoBackupSection> {
       return;
     }
 
-    await AutoBackupService.saveSettings(
-      enabled: true,
-      type: type,
-      hour: time.hour,
-      minute: time.minute,
-    );
     await _backup.saveAutoBackupSettings(
       enabled: true,
       type: type,
