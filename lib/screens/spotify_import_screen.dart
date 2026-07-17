@@ -45,10 +45,9 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
     _spotify.loadTokens();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final import = context.read<ImportProvider>();
-      if (import.isImporting) {
-        setState(() => _step = _ImportStep.downloading);
-      } else if (import.total > 0) {
-        setState(() => _step = _ImportStep.done);
+      if (import.isImporting || import.total > 0) {
+        context.read<NavigationProvider>().switchToTab(2);
+        Navigator.popUntil(context, (route) => route.isFirst);
       }
     });
   }
@@ -258,17 +257,14 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
   }
 
   Widget _buildBody(ThemeData theme) {
-    final import = context.watch<ImportProvider>();
-    if (import.isImporting) return _buildProgress(theme);
     switch (_step) {
       case _ImportStep.input:
         return _buildInput(theme);
       case _ImportStep.selecting:
         return _buildSelection(theme);
       case _ImportStep.downloading:
-        return _buildDone(theme);
       case _ImportStep.done:
-        return _buildDone(theme);
+        return const SizedBox();
     }
   }
 
@@ -491,6 +487,8 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
         Expanded(
           child: Scrollbar(
             controller: _tracksScrollController,
+            thumbVisibility: true,
+            thickness: 8,
             child: ListView.builder(
             controller: _tracksScrollController,
             itemCount: _tracks.length,
@@ -564,62 +562,6 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
 
   // ── Download progress ──
 
-  Widget _buildProgress(ThemeData theme) {
-    final import = context.watch<ImportProvider>();
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 24),
-            Text('Descargando...',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
-            const SizedBox(height: 8),
-            Text(import.statusText,
-                style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            LinearProgressIndicator(value: import.progress),
-            const SizedBox(height: 8),
-            Text('${import.downloaded} encontradas · ${import.skipped} omitidas · ${import.failed} fallidas',
-                style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDone(ThemeData theme) {
-    final import = context.read<ImportProvider>();
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.check_circle, size: 80, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(height: 24),
-            Text('Importación completada',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
-            const SizedBox(height: 8),
-            Text('${import.downloaded} en cola · ${import.skipped} omitidas · ${import.failed} fallidas',
-                style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              ),
-              child: const Text('Ir a descargas', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _ImportTrack {
