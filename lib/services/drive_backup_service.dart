@@ -63,8 +63,8 @@ class DriveBackupService {
 
   Future<String> _ensureFolder(String name, {String? parentId}) async {
     final headers = await _getAuthHeaders();
-
     final parentQuery = parentId != null ? " and '$parentId' in parents" : '';
+
     final listResponse = await http.get(
       Uri.parse(
           '$_driveApi/files?q=name=\'${Uri.encodeQueryComponent(name)}\' and mimeType=\'application/vnd.google-apps.folder\' and trashed=false$parentQuery&fields=files(id)'),
@@ -83,45 +83,57 @@ class DriveBackupService {
       'name': name,
       'mimeType': 'application/vnd.google-apps.folder',
     };
-    if (parentId != null) {
-      createBody['parents'] = [parentId];
-    }
+    if (parentId != null) createBody['parents'] = [parentId];
 
     final createResponse = await http.post(
       Uri.parse('$_driveApi/files'),
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-      },
+      headers: {...headers, 'Content-Type': 'application/json'},
       body: json.encode(createBody),
     );
 
     if (createResponse.statusCode != 200) {
-      throw Exception(
-          'Error al crear carpeta en Drive: ${createResponse.statusCode}');
+      throw Exception('Error al crear carpeta en Drive: ${createResponse.statusCode}');
     }
 
-    return (json.decode(createResponse.body) as Map<String, dynamic>)['id']
-        as String;
+    return (json.decode(createResponse.body) as Map<String, dynamic>)['id'] as String;
   }
 
   Future<String> ensureBackupFolder() => _ensureFolder(_backupFolder);
 
-  Future<String> ensureSongsFolder(String backupFolderId) =>
-      _ensureFolder(_songsFolder, parentId: backupFolderId);
+  Future<String> ensureTypeFolder(String backupFolderId, String typeName) =>
+      _ensureFolder(typeName, parentId: backupFolderId);
+
+  Future<String> ensureSongsFolder(String parentFolderId) =>
+      _ensureFolder(_songsFolder, parentId: parentFolderId);
+
+  Future<void> deleteAllFilesInFolder(String folderId) async {
+    final headers = await _getAuthHeaders();
+
+    final listResponse = await http.get(
+      Uri.parse(
+          '$_driveApi/files?q=\'$folderId\' in parents and trashed=false&fields=files(id)'),
+      headers: headers,
+    );
+
+    if (listResponse.statusCode != 200) return;
+
+    final data = json.decode(listResponse.body) as Map<String, dynamic>;
+    final files = data['files'] as List<dynamic>? ?? [];
+
+    for (final f in files) {
+      final id = (f as Map<String, dynamic>)['id'] as String;
+      await http.delete(Uri.parse('$_driveApi/files/$id'), headers: headers);
+    }
+  }
 
   // ── JSON file operations ──
 
-  Future<String> uploadJsonFile(
-      String folderId, String fileName, String jsonContent) async {
+  Future<String> uploadJsonFile(String folderId, String fileName, String jsonContent) async {
     final headers = await _getAuthHeaders();
 
     final createResponse = await http.post(
       Uri.parse('$_driveApi/files'),
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-      },
+      headers: {...headers, 'Content-Type': 'application/json'},
       body: json.encode({
         'name': fileName,
         'parents': [folderId],
@@ -130,37 +142,30 @@ class DriveBackupService {
     );
 
     if (createResponse.statusCode != 200) {
-      throw Exception(
-          'Error al crear archivo en Drive: ${createResponse.statusCode}');
+      throw Exception('Error al crear archivo en Drive: ${createResponse.statusCode}');
     }
 
-    final fileId =
-        (json.decode(createResponse.body) as Map<String, dynamic>)['id']
-            as String;
+    final fileId = (json.decode(createResponse.body) as Map<String, dynamic>)['id'] as String;
 
     final uploadResponse = await http.patch(
       Uri.parse('$_uploadApi/files/$fileId?uploadType=media'),
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-      },
+      headers: {...headers, 'Content-Type': 'application/json'},
       body: jsonContent,
     );
 
     if (uploadResponse.statusCode != 200) {
-      throw Exception(
-          'Error al subir contenido a Drive: ${uploadResponse.statusCode}');
+      throw Exception('Error al subir contenido a Drive: ${uploadResponse.statusCode}');
     }
 
     return fileId;
   }
 
-  Future<String?> findLatestJsonFile(String folderId, String prefix) async {
+  Future<String?> findFileByName(String folderId, String name) async {
     final headers = await _getAuthHeaders();
 
     final listResponse = await http.get(
       Uri.parse(
-          '$_driveApi/files?q=name contains \'${Uri.encodeQueryComponent(prefix)}\' and \'$folderId\' in parents and trashed=false&orderBy=createdTime desc&pageSize=1&fields=files(id,name)'),
+          '$_driveApi/files?q=name=\'${Uri.encodeQueryComponent(name)}\' and \'$folderId\' in parents and trashed=false&pageSize=1&fields=files(id)'),
       headers: headers,
     );
 
@@ -204,8 +209,7 @@ class DriveBackupService {
         .toList();
   }
 
-  Future<String> uploadSongFile(
-      String folderId, String localPath, String fileName) async {
+  Future<String> uploadSongFile(String folderId, String localPath, String fileName) async {
     final headers = await _getAuthHeaders();
     final file = File(localPath);
 
@@ -215,10 +219,7 @@ class DriveBackupService {
 
     final createResponse = await http.post(
       Uri.parse('$_driveApi/files'),
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-      },
+      headers: {...headers, 'Content-Type': 'application/json'},
       body: json.encode({
         'name': fileName,
         'parents': [folderId],
@@ -226,34 +227,26 @@ class DriveBackupService {
     );
 
     if (createResponse.statusCode != 200) {
-      throw Exception(
-          'Error al crear archivo de canción en Drive: ${createResponse.statusCode}');
+      throw Exception('Error al crear archivo en Drive: ${createResponse.statusCode}');
     }
 
-    final fileId =
-        (json.decode(createResponse.body) as Map<String, dynamic>)['id']
-            as String;
+    final fileId = (json.decode(createResponse.body) as Map<String, dynamic>)['id'] as String;
 
     final bytes = await file.readAsBytes();
     final uploadResponse = await http.patch(
       Uri.parse('$_uploadApi/files/$fileId?uploadType=media'),
-      headers: {
-        ...headers,
-        'Content-Type': 'application/octet-stream',
-      },
+      headers: {...headers, 'Content-Type': 'application/octet-stream'},
       body: bytes,
     );
 
     if (uploadResponse.statusCode != 200) {
-      throw Exception(
-          'Error al subir canción a Drive: ${uploadResponse.statusCode}');
+      throw Exception('Error al subir canción a Drive: ${uploadResponse.statusCode}');
     }
 
     return fileId;
   }
 
-  Future<void> downloadSongFile(
-      String fileId, String destPath) async {
+  Future<void> downloadSongFile(String fileId, String destPath) async {
     final headers = await _getAuthHeaders();
 
     final response = await http.get(
@@ -262,8 +255,7 @@ class DriveBackupService {
     );
 
     if (response.statusCode != 200) {
-      throw Exception(
-          'Error al descargar canción de Drive: ${response.statusCode}');
+      throw Exception('Error al descargar canción de Drive: ${response.statusCode}');
     }
 
     final file = File(destPath);
