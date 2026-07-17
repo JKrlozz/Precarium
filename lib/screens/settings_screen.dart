@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/backup_provider.dart';
+import '../providers/download_provider.dart';
+import '../providers/import_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/auto_backup_service.dart';
@@ -57,10 +59,6 @@ class SettingsScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const SpotifyImportScreen()),
                 ),
               ),
-              const SizedBox(height: 24),
-              _SectionHeader(title: 'Copia de seguridad'),
-              const SizedBox(height: 8),
-              _BackupSection(backup: backup),
               const SizedBox(height: 24),
               _SectionHeader(title: 'Google Drive'),
               const SizedBox(height: 8),
@@ -236,169 +234,6 @@ class _SettingsButton extends StatelessWidget {
   }
 }
 
-class _BackupSection extends StatefulWidget {
-  final BackupProvider backup;
-  const _BackupSection({required this.backup});
-
-  @override
-  State<_BackupSection> createState() => _BackupSectionState();
-}
-
-class _BackupSectionState extends State<_BackupSection> {
-  bool _cancelled = false;
-  BackupProvider get _backup => widget.backup;
-
-  @override
-  void dispose() {
-    _cancelled = true;
-    super.dispose();
-  }
-
-  Future<void> _onExport() async {
-    try {
-      final library = context.read<LibraryProvider>();
-      final settings = context.read<SettingsProvider>();
-      final backupProv = context.read<BackupProvider>();
-      final playlists = await DatabaseService.getPlaylistRows();
-      final playlistSongs = await DatabaseService.getAllPlaylistSongRows();
-
-      await backupProv.exportBackup(
-            songs: library.songs,
-            playlists: playlists,
-            playlistSongs: playlistSongs,
-            themeMode: settings.themeMode.index,
-            primaryColor: settings.primaryColor.toARGB32(),
-          );
-      if (!mounted || _cancelled) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Copia de seguridad creada correctamente'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted || _cancelled) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _onImport() async {
-    try {
-      await context.read<BackupProvider>().importBackup(
-            onRestore: (songs, playlists, playlistSongs, settings) {
-              if (!mounted || _cancelled) return;
-              if (settings != null) {
-                final s = context.read<SettingsProvider>();
-                final themeModeIndex = settings['themeMode'] as int?;
-                final primaryColor = settings['primaryColor'] as int?;
-                if (themeModeIndex != null) {
-                  s.setThemeMode(ThemeMode.values[themeModeIndex.clamp(
-                      0, ThemeMode.values.length - 1)]);
-                }
-                if (primaryColor != null) {
-                  s.setPrimaryColor(Color(primaryColor));
-                }
-              }
-              context.read<LibraryProvider>().loadLibrary();
-            },
-          );
-      if (!mounted || _cancelled) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Restauración completada'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted || _cancelled) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final lastBackup = _backup.lastBackupDate;
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Respalda o restaura tus datos',
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-          if (lastBackup != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Última copia: ${lastBackup.day.toString().padLeft(2, '0')}/${lastBackup.month.toString().padLeft(2, '0')}/${lastBackup.year}',
-              style: TextStyle(
-                fontSize: 11,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _backup.isExporting ? null : _onExport,
-                  icon: _backup.isExporting
-                      ? const SizedBox(
-                          width: 16, height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                        )
-                      : const Icon(Icons.upload, size: 18),
-                  label: Text(_backup.isExporting ? 'Exportando...' : 'Exportar',
-                      style: const TextStyle(color: Colors.black)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _backup.isImporting ? null : _onImport,
-                  icon: _backup.isImporting
-                      ? const SizedBox(
-                          width: 16, height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.download, size: 18),
-                  label: Text(_backup.isImporting ? 'Restaurando...' : 'Restaurar'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _DriveSection extends StatefulWidget {
   final BackupProvider backup;
   const _DriveSection({required this.backup});
@@ -444,7 +279,7 @@ class _DriveSectionState extends State<_DriveSection> {
   }
 
   Future<void> _showBackupTypeDialog() async {
-    final result = await showDialog<BackupChoice>(
+    final result = await showDialog<String>(
       context: context,
       builder: (ctx) => _BackupChoiceDialog(isUpload: true),
     );
@@ -456,34 +291,29 @@ class _DriveSectionState extends State<_DriveSection> {
     final playlistSongs = await DatabaseService.getAllPlaylistSongRows();
 
     try {
-      switch (result) {
-        case BackupChoice.config:
-          await backupProv.uploadConfigToDrive(
-            themeMode: settings.themeMode.index,
-            primaryColor: settings.primaryColor.toARGB32(),
-          );
-        case BackupChoice.songs:
-          await backupProv.uploadSongsToDrive(songs: library.songs);
-        case BackupChoice.playlists:
-          await backupProv.uploadPlaylistsToDrive(
-            playlists: playlists,
-            playlistSongs: playlistSongs,
-          );
-        case BackupChoice.full:
-          await backupProv.uploadFullBackup(
-            songs: library.songs,
-            playlists: playlists,
-            playlistSongs: playlistSongs,
-            themeMode: settings.themeMode.index,
-            primaryColor: settings.primaryColor.toARGB32(),
-          );
+      if (result == 'light') {
+        await backupProv.uploadLigeroBackup(
+          songs: library.songs,
+          playlists: playlists,
+          playlistSongs: playlistSongs,
+          themeMode: settings.themeMode.index,
+          primaryColor: settings.primaryColor.toARGB32(),
+        );
+      } else {
+        await backupProv.uploadCompletoBackup(
+          songs: library.songs,
+          playlists: playlists,
+          playlistSongs: playlistSongs,
+          themeMode: settings.themeMode.index,
+          primaryColor: settings.primaryColor.toARGB32(),
+        );
       }
       if (!mounted || _cancelled) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result == BackupChoice.full
+          content: Text(result == 'full'
               ? 'Respaldo completo subido a Drive'
-              : 'Copia de seguridad subida a Drive'),
+              : 'Respaldo ligero subido a Drive'),
           backgroundColor: Colors.green,
         ),
       );
@@ -520,9 +350,19 @@ class _DriveSectionState extends State<_DriveSection> {
             }
           }
         case BackupChoice.songs:
-          await backupProv.restoreSongsFromDrive();
-          if (mounted) {
-            context.read<LibraryProvider>().loadLibrary();
+          final songs = await backupProv.restoreSongsFromDrive();
+          if (mounted && songs.isNotEmpty) {
+            final importProv = context.read<ImportProvider>();
+            final downloadProv = context.read<DownloadProvider>();
+            final lib = context.read<LibraryProvider>();
+            importProv.startImport(
+              names: songs.map((s) => s.title).toList(),
+              artists: songs.map((s) => s.artist).toList(),
+              searchQueries: songs.map((s) => '${s.artist} ${s.title}').toList(),
+              existingLibrarySongs: lib.songs,
+              downloadProvider: downloadProv,
+              libraryProvider: lib,
+            );
           }
         case BackupChoice.playlists:
           await backupProv.restorePlaylistsFromDrive();
@@ -662,7 +502,7 @@ class _AutoBackupSectionState extends State<_AutoBackupSection> {
 
   Future<void> _toggle(bool value) async {
     if (!value) {
-      await AutoBackupService.cancel();
+      await AutoBackupService.disable();
       await _backup.saveAutoBackupSettings(
         enabled: false,
         type: _backup.autoBackupType,
@@ -692,7 +532,7 @@ class _AutoBackupSectionState extends State<_AutoBackupSection> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  initialValue: type,
+                  value: type,
                   decoration: const InputDecoration(labelText: 'Tipo de respaldo'),
                   items: const [
                     DropdownMenuItem(value: 'light', child: Text('Ligero (config + canciones + listas)')),
@@ -715,9 +555,7 @@ class _AutoBackupSectionState extends State<_AutoBackupSection> {
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
               ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx, true);
-                },
+                onPressed: () => Navigator.pop(ctx, true),
                 child: const Text('Guardar'),
               ),
             ],
@@ -731,7 +569,12 @@ class _AutoBackupSectionState extends State<_AutoBackupSection> {
       return;
     }
 
-    await AutoBackupService.schedule(type, time.hour, time.minute);
+    await AutoBackupService.saveSettings(
+      enabled: true,
+      type: type,
+      hour: time.hour,
+      minute: time.minute,
+    );
     await _backup.saveAutoBackupSettings(
       enabled: true,
       type: type,
@@ -814,37 +657,51 @@ class _BackupChoiceDialog extends StatelessWidget {
       title: Text(isUpload ? 'Subir backup' : 'Restaurar'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
-        children: [
-          _ChoiceTile(
-            icon: Icons.settings,
-            title: 'Configuración',
-            subtitle: 'Tema y color de la aplicación',
-            onTap: () => Navigator.pop(context, BackupChoice.config),
-          ),
-          const Divider(height: 1),
-          _ChoiceTile(
-            icon: Icons.music_note,
-            title: 'Canciones',
-            subtitle: isUpload
-                ? 'Solo metadatos para re-descargar después'
-                : 'Metadatos de canciones para importar',
-            onTap: () => Navigator.pop(context, BackupChoice.songs),
-          ),
-          const Divider(height: 1),
-          _ChoiceTile(
-            icon: Icons.queue_music,
-            title: 'Listas de reproducción',
-            subtitle: 'Estructura de tus listas',
-            onTap: () => Navigator.pop(context, BackupChoice.playlists),
-          ),
-          const Divider(height: 1),
-          _ChoiceTile(
-            icon: Icons.backup,
-            title: 'Completo',
-            subtitle: 'Configuración, canciones, listas y archivos de audio',
-            onTap: () => Navigator.pop(context, BackupChoice.full),
-          ),
-        ],
+        children: isUpload
+            ? [
+                _ChoiceTile(
+                  icon: Icons.cloud_upload,
+                  title: 'Ligero',
+                  subtitle: 'Configuración, canciones y listas (sin audio)',
+                  onTap: () => Navigator.pop(context, 'light'),
+                ),
+                const Divider(height: 1),
+                _ChoiceTile(
+                  icon: Icons.backup,
+                  title: 'Completo',
+                  subtitle: 'Configuración, canciones, listas y archivos de audio',
+                  onTap: () => Navigator.pop(context, 'full'),
+                ),
+              ]
+            : [
+                _ChoiceTile(
+                  icon: Icons.settings,
+                  title: 'Configuración',
+                  subtitle: 'Tema y color de la aplicación',
+                  onTap: () => Navigator.pop(context, BackupChoice.config),
+                ),
+                const Divider(height: 1),
+                _ChoiceTile(
+                  icon: Icons.music_note,
+                  title: 'Canciones',
+                  subtitle: 'Metadatos de canciones para importar',
+                  onTap: () => Navigator.pop(context, BackupChoice.songs),
+                ),
+                const Divider(height: 1),
+                _ChoiceTile(
+                  icon: Icons.queue_music,
+                  title: 'Listas de reproducción',
+                  subtitle: 'Estructura de tus listas',
+                  onTap: () => Navigator.pop(context, BackupChoice.playlists),
+                ),
+                const Divider(height: 1),
+                _ChoiceTile(
+                  icon: Icons.backup,
+                  title: 'Completo',
+                  subtitle: 'Configuración, canciones, listas y archivos de audio',
+                  onTap: () => Navigator.pop(context, BackupChoice.full),
+                ),
+              ],
       ),
       actions: [
         TextButton(

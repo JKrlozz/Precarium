@@ -122,10 +122,10 @@ class LibraryProvider extends ChangeNotifier {
           final existing = dbSongs[existingIdx];
           _songs.add(Song(
             id: existing.id,
-            title: scanned.title,
-            artist: scanned.artist,
-            album: scanned.album,
-            albumArtPath: scanned.albumArtPath,
+            title: existing.title,
+            artist: existing.artist,
+            album: existing.album,
+            albumArtPath: existing.albumArtPath ?? scanned.albumArtPath,
             filePath: scanned.filePath,
             duration: scanned.duration,
             downloadDate: existing.downloadDate,

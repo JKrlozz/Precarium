@@ -194,19 +194,56 @@ class BackupProvider extends ChangeNotifier {
 
   Future<String> _backupFolder() => _driveService.ensureBackupFolder();
 
-  Future<String> _typeFolder(String type) async {
+  Future<String> _ligeroFolder() async {
     final root = await _backupFolder();
-    return _driveService.ensureTypeFolder(root, type);
+    return _driveService.ensureTypeFolder(root, 'Ligero');
   }
 
-  Future<void> _clearAndUpload(String folderId, String fileName, String jsonContent) async {
+  Future<String> _completoFolder() async {
+    final root = await _backupFolder();
+    return _driveService.ensureTypeFolder(root, 'Completo');
+  }
+
+  String _json(int themeMode, int primaryColor) =>
+      const JsonEncoder.withIndent('  ').convert({
+        'version': 1, 'exportedAt': DateTime.now().toIso8601String(),
+        'themeMode': themeMode, 'primaryColor': primaryColor,
+      });
+
+  String _jsonSongs(List<Song> songs) =>
+      const JsonEncoder.withIndent('  ').convert({
+        'version': 1, 'exportedAt': DateTime.now().toIso8601String(),
+        'songs': songs.map((s) => s.toJson()).toList(),
+      });
+
+  String _jsonPlaylists(
+          List<Map<String, dynamic>> playlists,
+          List<Map<String, dynamic>> playlistSongs) =>
+      const JsonEncoder.withIndent('  ').convert({
+        'version': 1, 'exportedAt': DateTime.now().toIso8601String(),
+        'playlists': playlists, 'playlistSongs': playlistSongs,
+      });
+
+  // ── Ligero backup ──
+
+  Future<void> _uploadLigeroJsons({
+    required List<Song> songs,
+    required List<Map<String, dynamic>> playlists,
+    required List<Map<String, dynamic>> playlistSongs,
+    required int themeMode,
+    required int primaryColor,
+  }) async {
+    final folderId = await _ligeroFolder();
     await _driveService.deleteAllFilesInFolder(folderId);
-    await _driveService.uploadJsonFile(folderId, fileName, jsonContent);
+    await _driveService.uploadJsonFile(folderId, 'config.json', _json(themeMode, primaryColor));
+    await _driveService.uploadJsonFile(folderId, 'songs.json', _jsonSongs(songs));
+    await _driveService.uploadJsonFile(folderId, 'playlists.json', _jsonPlaylists(playlists, playlistSongs));
   }
 
-  // ── Drive backup by type ──
-
-  Future<void> uploadConfigToDrive({
+  Future<void> uploadLigeroBackup({
+    required List<Song> songs,
+    required List<Map<String, dynamic>> playlists,
+    required List<Map<String, dynamic>> playlistSongs,
     required int themeMode,
     required int primaryColor,
   }) async {
@@ -214,16 +251,9 @@ class BackupProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final folderId = await _typeFolder('Config');
-      await _clearAndUpload(
-        folderId,
-        'config.json',
-        const JsonEncoder.withIndent('  ').convert({
-          'version': 1,
-          'exportedAt': DateTime.now().toIso8601String(),
-          'themeMode': themeMode,
-          'primaryColor': primaryColor,
-        }),
+      await _uploadLigeroJsons(
+        songs: songs, playlists: playlists,
+        playlistSongs: playlistSongs, themeMode: themeMode, primaryColor: primaryColor,
       );
       await _saveLastBackupDate();
     } catch (e) {
@@ -234,63 +264,9 @@ class BackupProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> uploadSongsToDrive({
-    required List<Song> songs,
-  }) async {
-    _isExporting = true;
-    notifyListeners();
+  // ── Completo backup ──
 
-    try {
-      final folderId = await _typeFolder('Songs');
-      await _clearAndUpload(
-        folderId,
-        'songs.json',
-        const JsonEncoder.withIndent('  ').convert({
-          'version': 1,
-          'exportedAt': DateTime.now().toIso8601String(),
-          'songs': songs.map((s) => s.toJson()).toList(),
-        }),
-      );
-      await _saveLastBackupDate();
-    } catch (e) {
-      rethrow;
-    } finally {
-      _isExporting = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> uploadPlaylistsToDrive({
-    required List<Map<String, dynamic>> playlists,
-    required List<Map<String, dynamic>> playlistSongs,
-  }) async {
-    _isExporting = true;
-    notifyListeners();
-
-    try {
-      final folderId = await _typeFolder('Playlists');
-      await _clearAndUpload(
-        folderId,
-        'playlists.json',
-        const JsonEncoder.withIndent('  ').convert({
-          'version': 1,
-          'exportedAt': DateTime.now().toIso8601String(),
-          'playlists': playlists,
-          'playlistSongs': playlistSongs,
-        }),
-      );
-      await _saveLastBackupDate();
-    } catch (e) {
-      rethrow;
-    } finally {
-      _isExporting = false;
-      notifyListeners();
-    }
-  }
-
-  // ── Full backup ──
-
-  Future<void> uploadFullBackup({
+  Future<void> uploadCompletoBackup({
     required List<Song> songs,
     required List<Map<String, dynamic>> playlists,
     required List<Map<String, dynamic>> playlistSongs,
@@ -303,72 +279,66 @@ class BackupProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final fullFolderId = await _typeFolder('Full');
-      await _driveService.deleteAllFilesInFolder(fullFolderId);
-
-      _fullStatus = 'Subiendo configuración...';
+      _fullStatus = 'Actualizando respaldo ligero...';
       _fullProgress = 0.05;
       notifyListeners();
-      await _driveService.uploadJsonFile(
-          fullFolderId, 'config.json',
-          const JsonEncoder.withIndent('  ').convert({
-            'version': 1, 'exportedAt': DateTime.now().toIso8601String(),
-            'themeMode': themeMode, 'primaryColor': primaryColor,
-          }));
-
-      _fullStatus = 'Subiendo canciones...';
-      _fullProgress = 0.1;
-      notifyListeners();
-      await _driveService.uploadJsonFile(
-          fullFolderId, 'songs.json',
-          const JsonEncoder.withIndent('  ').convert({
-            'version': 1, 'exportedAt': DateTime.now().toIso8601String(),
-            'songs': songs.map((s) => s.toJson()).toList(),
-          }));
-
-      _fullStatus = 'Subiendo listas de reproducción...';
-      _fullProgress = 0.15;
-      notifyListeners();
-      await _driveService.uploadJsonFile(
-          fullFolderId, 'playlists.json',
-          const JsonEncoder.withIndent('  ').convert({
-            'version': 1, 'exportedAt': DateTime.now().toIso8601String(),
-            'playlists': playlists, 'playlistSongs': playlistSongs,
-          }));
+      await _uploadLigeroJsons(
+        songs: songs, playlists: playlists,
+        playlistSongs: playlistSongs, themeMode: themeMode, primaryColor: primaryColor,
+      );
 
       _fullStatus = 'Preparando canciones descargadas...';
       _fullProgress = 0.2;
       notifyListeners();
 
-      final songsFolderId = await _driveService.ensureSongsFolder(fullFolderId);
-      await _driveService.deleteAllFilesInFolder(songsFolderId);
+      final completoId = await _completoFolder();
+      final songsFolderId = await _driveService.ensureSongsFolder(completoId);
 
-      final seen = <String>{};
+      final existingFiles = await _driveService.listSongFiles(songsFolderId);
+      final existingKeys = <String>{};
+      for (final f in existingFiles) {
+        final name = f['name'] as String;
+        final body = name.substring(0, name.lastIndexOf('.'));
+        if (body.contains('_')) {
+          existingKeys.add(body.split('_').first);
+        } else {
+          existingKeys.add(body);
+        }
+      }
+
       final localSongs = <Song>[];
       for (final s in songs) {
-        if (s.filePath.isNotEmpty && File(s.filePath).existsSync() && seen.add(s.filePath)) {
+        if (s.filePath.isNotEmpty && File(s.filePath).existsSync()) {
           localSongs.add(s);
         }
       }
 
-      if (localSongs.isEmpty) {
-        _fullStatus = 'No hay canciones descargadas para respaldar';
+      final toUpload = localSongs.where((s) => !existingKeys.contains(s.id)).toList();
+      final skipped = localSongs.length - toUpload.length;
+
+      if (toUpload.isEmpty) {
+        _fullStatus = skipped > 0
+            ? 'Todas las canciones ya están en Drive ($skipped omitidas)'
+            : 'No hay canciones descargadas para respaldar';
         _fullProgress = 1.0;
         notifyListeners();
       } else {
-        for (int i = 0; i < localSongs.length; i++) {
-          final song = localSongs[i];
-          _fullStatus = 'Subiendo canción ${i + 1} de ${localSongs.length}: ${song.title}';
-          _fullProgress = 0.2 + (0.8 * (i / localSongs.length));
+        for (int i = 0; i < toUpload.length; i++) {
+          final song = toUpload[i];
+          _fullStatus = 'Subiendo canción ${i + 1} de ${toUpload.length}: ${song.title}';
+          _fullProgress = 0.2 + (0.8 * (i / toUpload.length));
           notifyListeners();
 
+          final ext = _extension(song.filePath);
+          final driveName = '${song.id}.$ext';
+
           try {
-            await _driveService.uploadSongFile(
-                songsFolderId, song.filePath, '${song.id}.${_extension(song.filePath)}');
+            await _driveService.uploadSongFile(songsFolderId, song.filePath, driveName);
           } catch (_) {}
         }
 
-        _fullStatus = 'Respaldo completo finalizado: ${localSongs.length} canciones';
+        _fullStatus = 'Respaldo completo finalizado: ${toUpload.length} subidas'
+            '${skipped > 0 ? ', $skipped ya existentes' : ''}';
         _fullProgress = 1.0;
         notifyListeners();
       }
@@ -385,6 +355,10 @@ class BackupProvider extends ChangeNotifier {
   String _extension(String path) {
     final dot = path.lastIndexOf('.');
     return dot >= 0 ? path.substring(dot + 1) : 'm4a';
+  }
+
+  String _sanitizeName(String name) {
+    return name.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
   }
 
   // ── Drive restore helpers ──
@@ -429,14 +403,14 @@ class BackupProvider extends ChangeNotifier {
     await batch.commit(noResult: true);
   }
 
-  // ── Drive restore by type ──
+  // ── Drive restore from Ligero ──
 
   Future<Map<String, dynamic>?> downloadConfigFromDrive() async {
     _isImporting = true;
     notifyListeners();
 
     try {
-      final folderId = await _typeFolder('Config');
+      final folderId = await _ligeroFolder();
       final fileId = await _findJsonFile(folderId, 'config.json');
       if (fileId == null) throw Exception('No se encontró configuración.');
       return _downloadAndParse(fileId);
@@ -448,21 +422,20 @@ class BackupProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> restoreSongsFromDrive() async {
+  Future<List<Song>> restoreSongsFromDrive() async {
     _isImporting = true;
     notifyListeners();
 
     try {
-      final folderId = await _typeFolder('Songs');
+      final folderId = await _ligeroFolder();
       final fileId = await _findJsonFile(folderId, 'songs.json');
       if (fileId == null) throw Exception('No se encontraron canciones.');
       final data = await _downloadAndParse(fileId);
       if (data == null) throw Exception('Error al descargar canciones.');
       final songsList = data['songs'] as List<dynamic>? ?? [];
-      final songs = songsList
+      return songsList
           .map((e) => Song.fromJson(e as Map<String, dynamic>))
           .toList();
-      await _restoreSongsToDb(songs);
     } catch (e) {
       rethrow;
     } finally {
@@ -476,7 +449,7 @@ class BackupProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final folderId = await _typeFolder('Playlists');
+      final folderId = await _ligeroFolder();
       final fileId = await _findJsonFile(folderId, 'playlists.json');
       if (fileId == null) throw Exception('No se encontraron listas.');
       final data = await _downloadAndParse(fileId);
@@ -504,13 +477,13 @@ class BackupProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final fullFolderId = await _typeFolder('Full');
+      final ligeroId = await _ligeroFolder();
 
       _fullStatus = 'Restaurando configuración...';
       _fullProgress = 0.05;
       notifyListeners();
 
-      final configId = await _findJsonFile(fullFolderId, 'config.json');
+      final configId = await _findJsonFile(ligeroId, 'config.json');
       if (configId != null) {
         await _downloadAndParse(configId);
       }
@@ -519,7 +492,7 @@ class BackupProvider extends ChangeNotifier {
       _fullProgress = 0.1;
       notifyListeners();
 
-      final songsId = await _findJsonFile(fullFolderId, 'songs.json');
+      final songsId = await _findJsonFile(ligeroId, 'songs.json');
       if (songsId != null) {
         final data = await _downloadAndParse(songsId);
         if (data != null) {
@@ -535,7 +508,7 @@ class BackupProvider extends ChangeNotifier {
       _fullProgress = 0.15;
       notifyListeners();
 
-      final playlistsId = await _findJsonFile(fullFolderId, 'playlists.json');
+      final playlistsId = await _findJsonFile(ligeroId, 'playlists.json');
       if (playlistsId != null) {
         final data = await _downloadAndParse(playlistsId);
         if (data != null) {
@@ -552,27 +525,92 @@ class BackupProvider extends ChangeNotifier {
       _fullProgress = 0.2;
       notifyListeners();
 
-      final songsFolderId = await _driveService.ensureSongsFolder(fullFolderId);
+      final dbSongs = await DatabaseService.getSongs();
+      final songsById = {for (final s in dbSongs) s.id: s};
+      final songsByOldKey = <String, Song>{};
+      for (final s in dbSongs) {
+        songsByOldKey['${_sanitizeName(s.artist)}_${_sanitizeName(s.title)}'] = s;
+      }
+
+      final completoId = await _completoFolder();
+      final songsFolderId = await _driveService.ensureSongsFolder(completoId);
       final songFiles = await _driveService.listSongFiles(songsFolderId);
       final appDir = await _getSongsDirectory();
 
       if (songFiles.isEmpty) {
         _fullStatus = 'No hay archivos de audio en Drive';
       } else {
+        int downloaded = 0;
         for (int i = 0; i < songFiles.length; i++) {
           final info = songFiles[i];
           final fileId = info['id'] as String;
           final fileName = info['name'] as String;
-          _fullStatus = 'Descargando archivo ${i + 1} de ${songFiles.length}: $fileName';
+          _fullStatus = 'Procesando archivo ${i + 1} de ${songFiles.length}: $fileName';
           _fullProgress = 0.2 + (0.8 * (i / songFiles.length));
           notifyListeners();
 
+          final body = fileName.substring(0, fileName.lastIndexOf('.'));
+          Song? song;
+          if (body.contains('_')) {
+            song = songsById[body.split('_').first];
+          } else {
+            song = songsById[body];
+          }
+          song ??= songsByOldKey[body];
+
+          final ext = _extension(fileName);
+          final localName = song != null
+              ? '${_sanitizeName(song.artist)} - ${_sanitizeName(song.title)}.$ext'
+              : fileName;
+          final localPath = '${appDir.path}${Platform.pathSeparator}$localName';
+
+          if (File(localPath).existsSync()) {
+            downloaded++;
+            if (song != null) {
+              final updated = Song(
+                id: song.id,
+                title: song.title,
+                artist: song.artist,
+                album: song.album,
+                albumArtPath: song.albumArtPath,
+                filePath: localPath,
+                duration: song.duration,
+                trackNumber: song.trackNumber,
+                discNumber: song.discNumber,
+                year: song.year,
+                genre: song.genre,
+                downloadDate: DateTime.now(),
+                fileSize: await File(localPath).length(),
+              );
+              await DatabaseService.upsertSong(updated);
+            }
+            continue;
+          }
+
           try {
-            await _driveService.downloadSongFile(
-                fileId, '${appDir.path}${Platform.pathSeparator}$fileName');
+            await _driveService.downloadSongFile(fileId, localPath);
+            downloaded++;
+            if (song != null) {
+              final updated = Song(
+                id: song.id,
+                title: song.title,
+                artist: song.artist,
+                album: song.album,
+                albumArtPath: song.albumArtPath,
+                filePath: localPath,
+                duration: song.duration,
+                trackNumber: song.trackNumber,
+                discNumber: song.discNumber,
+                year: song.year,
+                genre: song.genre,
+                downloadDate: DateTime.now(),
+                fileSize: await File(localPath).length(),
+              );
+              await DatabaseService.upsertSong(updated);
+            }
           } catch (_) {}
         }
-        _fullStatus = 'Restauración completa: ${songFiles.length} archivos descargados';
+        _fullStatus = 'Restauración completa: $downloaded archivos descargados';
       }
 
       _fullProgress = 1.0;
