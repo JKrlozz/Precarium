@@ -231,11 +231,18 @@ class _SettingsButton extends StatelessWidget {
   }
 }
 
-class _BackupSection extends StatelessWidget {
+class _BackupSection extends StatefulWidget {
   final BackupProvider backup;
   const _BackupSection({required this.backup});
 
-  Future<void> _onExport(BuildContext context) async {
+  @override
+  State<_BackupSection> createState() => _BackupSectionState();
+}
+
+class _BackupSectionState extends State<_BackupSection> {
+  BackupProvider get _backup => widget.backup;
+
+  Future<void> _onExport() async {
     try {
       final library = context.read<LibraryProvider>();
       final settings = context.read<SettingsProvider>();
@@ -250,31 +257,29 @@ class _BackupSection extends StatelessWidget {
             themeMode: settings.themeMode.index,
             primaryColor: settings.primaryColor.toARGB32(),
           );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Copia de seguridad creada correctamente'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Copia de seguridad creada correctamente'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
-  Future<void> _onImport(BuildContext context) async {
+  Future<void> _onImport() async {
     try {
       await context.read<BackupProvider>().importBackup(
             onRestore: (songs, playlists, playlistSongs, settings) {
-              if (!context.mounted) return;
+              if (!mounted) return;
               if (settings != null) {
                 final s = context.read<SettingsProvider>();
                 final themeModeIndex = settings['themeMode'] as int?;
@@ -290,30 +295,28 @@ class _BackupSection extends StatelessWidget {
               context.read<LibraryProvider>().loadLibrary();
             },
           );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Restauración completada'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Restauración completada'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final lastBackup = backup.lastBackupDate;
+    final lastBackup = _backup.lastBackupDate;
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
@@ -345,14 +348,14 @@ class _BackupSection extends StatelessWidget {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: backup.isExporting ? null : () => _onExport(context),
-                  icon: backup.isExporting
+                  onPressed: _backup.isExporting ? null : _onExport,
+                  icon: _backup.isExporting
                       ? const SizedBox(
                           width: 16, height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
                         )
                       : const Icon(Icons.upload, size: 18),
-                  label: Text(backup.isExporting ? 'Exportando...' : 'Exportar',
+                  label: Text(_backup.isExporting ? 'Exportando...' : 'Exportar',
                       style: const TextStyle(color: Colors.black)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
@@ -363,14 +366,14 @@ class _BackupSection extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: backup.isImporting ? null : () => _onImport(context),
-                  icon: backup.isImporting
+                  onPressed: _backup.isImporting ? null : _onImport,
+                  icon: _backup.isImporting
                       ? const SizedBox(
                           width: 16, height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.download, size: 18),
-                  label: Text(backup.isImporting ? 'Restaurando...' : 'Restaurar'),
+                  label: Text(_backup.isImporting ? 'Restaurando...' : 'Restaurar'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
@@ -384,40 +387,44 @@ class _BackupSection extends StatelessWidget {
   }
 }
 
-class _DriveSection extends StatelessWidget {
+class _DriveSection extends StatefulWidget {
   final BackupProvider backup;
   const _DriveSection({required this.backup});
 
-  Future<void> _onConnect(BuildContext context) async {
+  @override
+  State<_DriveSection> createState() => _DriveSectionState();
+}
+
+class _DriveSectionState extends State<_DriveSection> {
+  BackupProvider get _backup => widget.backup;
+
+  Future<void> _onConnect() async {
     try {
       await context.read<BackupProvider>().connectToDrive();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Conectado a Google Drive'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  Future<void> _onDisconnect(BuildContext context) async {
-    await context.read<BackupProvider>().disconnectFromDrive();
-    if (context.mounted) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Desconectado de Google Drive')),
+        const SnackBar(
+          content: Text('Conectado a Google Drive'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
       );
     }
   }
 
-  Future<void> _onExportDrive(BuildContext context) async {
+  Future<void> _onDisconnect() async {
+    await context.read<BackupProvider>().disconnectFromDrive();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Desconectado de Google Drive')),
+    );
+  }
+
+  Future<void> _onExportDrive() async {
     try {
       final library = context.read<LibraryProvider>();
       final settings = context.read<SettingsProvider>();
@@ -432,29 +439,27 @@ class _DriveSection extends StatelessWidget {
         themeMode: settings.themeMode.index,
         primaryColor: settings.primaryColor.toARGB32(),
       );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Copia de seguridad subida a Drive'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Copia de seguridad subida a Drive'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+      );
     }
   }
 
-  Future<void> _onImportDrive(BuildContext context) async {
+  Future<void> _onImportDrive() async {
     try {
       final backupProv = context.read<BackupProvider>();
       final message = await backupProv.importFromDrive(
         onRestore: (songs, playlists, playlistSongs, settings) {
-          if (!context.mounted) return;
+          if (!mounted) return;
           if (settings != null) {
             final s = context.read<SettingsProvider>();
             final themeModeIndex = settings['themeMode'] as int?;
@@ -470,17 +475,15 @@ class _DriveSection extends StatelessWidget {
           context.read<LibraryProvider>().loadLibrary();
         },
       );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.green),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.green),
+      );
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -504,7 +507,7 @@ class _DriveSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          if (backup.driveConnected) ...[
+          if (_backup.driveConnected) ...[
             Row(
               children: [
                 Icon(Icons.check_circle, color: Colors.green, size: 18),
@@ -512,7 +515,7 @@ class _DriveSection extends StatelessWidget {
                 Text('Conectado', style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14)),
                 const Spacer(),
                 TextButton(
-                  onPressed: () => _onDisconnect(context),
+                  onPressed: _onDisconnect,
                   child: const Text('Desconectar', style: TextStyle(color: Colors.red)),
                 ),
               ],
@@ -522,11 +525,11 @@ class _DriveSection extends StatelessWidget {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: backup.isExporting ? null : () => _onExportDrive(context),
-                    icon: backup.isExporting
+                    onPressed: _backup.isExporting ? null : _onExportDrive,
+                    icon: _backup.isExporting
                         ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
                         : const Icon(Icons.cloud_upload, size: 18),
-                    label: Text(backup.isExporting ? 'Subiendo...' : 'Subir backup',
+                    label: Text(_backup.isExporting ? 'Subiendo...' : 'Subir backup',
                         style: const TextStyle(color: Colors.black)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: theme.colorScheme.primary,
@@ -537,11 +540,11 @@ class _DriveSection extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: backup.isImporting ? null : () => _onImportDrive(context),
-                    icon: backup.isImporting
+                    onPressed: _backup.isImporting ? null : _onImportDrive,
+                    icon: _backup.isImporting
                         ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.cloud_download, size: 18),
-                    label: Text(backup.isImporting ? 'Descargando...' : 'Restaurar'),
+                    label: Text(_backup.isImporting ? 'Descargando...' : 'Restaurar'),
                     style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
                   ),
                 ),
@@ -551,11 +554,11 @@ class _DriveSection extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: backup.isDriveConnecting ? null : () => _onConnect(context),
-                icon: backup.isDriveConnecting
+                onPressed: _backup.isDriveConnecting ? null : _onConnect,
+                icon: _backup.isDriveConnecting
                     ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
                     : const Icon(Icons.login, size: 18),
-                label: Text(backup.isDriveConnecting ? 'Conectando...' : 'Iniciar sesión con Google',
+                label: Text(_backup.isDriveConnecting ? 'Conectando...' : 'Iniciar sesión con Google',
                     style: const TextStyle(color: Colors.black)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: theme.colorScheme.primary,

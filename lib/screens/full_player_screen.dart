@@ -25,7 +25,22 @@ class FullPlayerScreen extends StatelessWidget {
             maxChildSize: 0.85,
             minChildSize: 0.3,
             expand: false,
-            builder: (_, scrollController) => Column(
+            builder: (_, scrollController) {
+              if (currentIdx >= 0 && currentIdx < queue.length) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (scrollController.hasClients) {
+                    final tileHeight = 72.0;
+                    final maxScroll = scrollController.position.maxScrollExtent;
+                    final target = (currentIdx * tileHeight).clamp(0.0, maxScroll);
+                    scrollController.animateTo(
+                      target,
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                });
+              }
+              return Column(
               children: [
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -122,7 +137,8 @@ class FullPlayerScreen extends StatelessWidget {
                         ),
                 ),
               ],
-            ),
+            );
+            }
           );
         },
       ),
