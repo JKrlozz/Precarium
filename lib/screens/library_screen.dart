@@ -446,7 +446,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 return SongTile(
                   song: song,
                   subtitleExtra: extra,
-                  onTap: () => context.read<PlayerProvider>().playQueue(songs, startIndex: index),
+                  onTap: () {
+                    final provider = context.read<PlayerProvider>();
+                    if (query.isEmpty) {
+                      provider.playQueue(songs, startIndex: index);
+                    } else {
+                      final fullSongs = context.read<LibraryProvider>().songs;
+                      final startIdx = fullSongs.indexWhere((s) => s.id == song.id);
+                      provider.playQueue(fullSongs, startIndex: startIdx >= 0 ? startIdx : 0);
+                    }
+                  },
                   onLongPress: () => _showSongContextMenu(context, song, songs, index),
                   onDelete: () => _confirmDeleteSong(song),
                   onAddToPlaylist: () => _showAddToPlaylistDialog(song),
