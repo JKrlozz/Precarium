@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/song.dart';
 import '../services/spotify_service.dart';
-import '../services/youtube_search_service.dart';
 import '../services/csv_import_service.dart';
 import '../providers/library_provider.dart';
 import '../providers/download_provider.dart';
+import '../providers/import_provider.dart';
 import '../theme/app_theme.dart';
 
 enum _ImportStep { input, selecting, downloading, done }
@@ -20,7 +20,6 @@ class SpotifyImportScreen extends StatefulWidget {
 
 class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
   final SpotifyService _spotify = SpotifyService();
-  final YouTubeSearchService _ytSearch = YouTubeSearchService();
   final CsvImportService _csvImport = CsvImportService();
   final _playlistUrlController = TextEditingController();
 
@@ -38,16 +37,18 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
 
   Set<int> _existingIndices = {};
 
-  int _downloaded = 0;
-  int _failed = 0;
-  int _skipped = 0;
-  int _total = 0;
-  String _statusText = '';
-
   @override
   void initState() {
     super.initState();
     _spotify.loadTokens();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final import = context.read<ImportProvider>();
+      if (import.isImporting) {
+        setState(() => _step = _ImportStep.downloading);
+      } else if (import.total > 0) {
+        setState(() => _step = _ImportStep.done);
+      }
+    });
   }
 
   @override
@@ -133,66 +134,23 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
     }
   }
 
-  Future<void> _startDownload() async {
+  void _startDownload() {
     if (_tracks.isEmpty) return;
     final selected = _selectedIndices.map((i) => _tracks[i]).toList();
     if (selected.isEmpty) return;
 
-    final downloadProvider = context.read<DownloadProvider>();
-    final existingLibrarySongs = context.read<LibraryProvider>().songs.toList();
-    final libraryProvider = context.read<LibraryProvider>();
+    context.read<ImportProvider>().startImport(
+      names: selected.map((t) => t.name).toList(),
+      artists: selected.map((t) => t.artists).toList(),
+      searchQueries: selected.map((t) => t.searchQuery).toList(),
+      existingLibrarySongs: context.read<LibraryProvider>().songs.toList(),
+      downloadProvider: context.read<DownloadProvider>(),
+      libraryProvider: context.read<LibraryProvider>(),
+    );
 
     setState(() {
       _step = _ImportStep.downloading;
-      _downloaded = 0;
-      _failed = 0;
-      _skipped = 0;
-      _total = selected.length;
-      _statusText = 'Buscando en YouTube...';
     });
-
-    for (int i = 0; i < selected.length; i++) {
-      final track = selected[i];
-
-      if (mounted) {
-        setState(() {
-          _statusText = '(${i + 1}/$_total) Buscando ${track.name}...';
-        });
-      }
-
-      if (_matchesExisting(track.name, existingLibrarySongs)) {
-        if (mounted) setState(() => _skipped++);
-        continue;
-      }
-
-      try {
-        final searchResults = await _ytSearch.search(track.searchQuery);
-        if (searchResults.isNotEmpty) {
-          final first = searchResults.first;
-          downloadProvider.addDownload(
-            first.id,
-            first.title,
-            artist: track.artists,
-            thumbnailUrl: first.thumbnailUrl,
-          );
-          if (mounted) setState(() => _downloaded++);
-        } else {
-          if (mounted) setState(() => _failed++);
-        }
-      } catch (_) {
-        if (mounted) setState(() => _failed++);
-      }
-
-      await Future.delayed(const Duration(milliseconds: 2000));
-    }
-
-    if (mounted) {
-      setState(() {
-        _step = _ImportStep.done;
-        _statusText = '';
-      });
-      libraryProvider.loadLibrary();
-    }
   }
 
   // ── Helpers ──
@@ -238,6 +196,7 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
   }
 
   void _resetToInput() {
+    context.read<ImportProvider>().reset();
     setState(() {
       _step = _ImportStep.input;
       _tracks = [];
@@ -297,13 +256,15 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
   }
 
   Widget _buildBody(ThemeData theme) {
+    final import = context.watch<ImportProvider>();
+    if (import.isImporting) return _buildProgress(theme);
     switch (_step) {
       case _ImportStep.input:
         return _buildInput(theme);
       case _ImportStep.selecting:
         return _buildSelection(theme);
       case _ImportStep.downloading:
-        return _buildProgress(theme);
+        return _buildDone(theme);
       case _ImportStep.done:
         return _buildDone(theme);
     }
@@ -526,7 +487,8 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
         ),
         const Divider(height: 1),
         Expanded(
-          child: ListView.builder(
+          child: Scrollbar(
+            child: ListView.builder(
             itemCount: _tracks.length,
             itemBuilder: (context, index) {
               final track = _tracks[index];
@@ -571,6 +533,7 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
               );
             },
           ),
+          ),
         ),
         SafeArea(
           child: Padding(
@@ -598,6 +561,7 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
   // ── Download progress ──
 
   Widget _buildProgress(ThemeData theme) {
+    final import = context.watch<ImportProvider>();
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -609,13 +573,13 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
             Text('Descargando...',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
             const SizedBox(height: 8),
-            Text(_statusText,
+            Text(import.statusText,
                 style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
                 textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            LinearProgressIndicator(value: _total > 0 ? (_downloaded + _failed + _skipped) / _total : 0),
+            LinearProgressIndicator(value: import.progress),
             const SizedBox(height: 8),
-            Text('$_downloaded encontradas · $_skipped omitidas · $_failed fallidas',
+            Text('${import.downloaded} encontradas · ${import.skipped} omitidas · ${import.failed} fallidas',
                 style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
           ],
         ),
@@ -624,6 +588,7 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
   }
 
   Widget _buildDone(ThemeData theme) {
+    final import = context.read<ImportProvider>();
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -635,7 +600,7 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
             Text('Importación completada',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
             const SizedBox(height: 8),
-            Text('$_downloaded en cola · $_skipped omitidas · $_failed fallidas',
+            Text('${import.downloaded} en cola · ${import.skipped} omitidas · ${import.failed} fallidas',
                 style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
             const SizedBox(height: 32),
             ElevatedButton(

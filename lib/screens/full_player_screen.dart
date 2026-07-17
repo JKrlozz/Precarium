@@ -9,6 +9,7 @@ class FullPlayerScreen extends StatelessWidget {
   const FullPlayerScreen({super.key});
 
   void _showQueue(BuildContext context) {
+    bool autoScrolled = false;
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surfaceColor,
@@ -26,17 +27,14 @@ class FullPlayerScreen extends StatelessWidget {
             minChildSize: 0.3,
             expand: false,
             builder: (_, scrollController) {
-              if (currentIdx >= 0 && currentIdx < queue.length) {
+              if (!autoScrolled && currentIdx >= 0 && currentIdx < queue.length) {
+                autoScrolled = true;
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (scrollController.hasClients) {
                     final tileHeight = 72.0;
                     final maxScroll = scrollController.position.maxScrollExtent;
                     final target = (currentIdx * tileHeight).clamp(0.0, maxScroll);
-                    scrollController.animateTo(
-                      target,
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOut,
-                    );
+                    scrollController.jumpTo(target);
                   }
                 });
               }

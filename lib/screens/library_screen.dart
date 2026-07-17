@@ -424,29 +424,31 @@ class _LibraryScreenState extends State<LibraryScreen> {
             ),
           ),
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.only(bottom: 80),
-            itemCount: songs.length,
-            itemBuilder: (context, index) {
-              final song = songs[index];
-              final extra = song.downloadDate != null
-                  ? '${song.formattedFileSize} • ${song.formattedDownloadDate}'
-                  : song.formattedFileSize;
-              return SongTile(
-                song: song,
-                subtitleExtra: extra,
-                onTap: () => context.read<PlayerProvider>().playQueue(songs, startIndex: index),
-                onLongPress: () => _showSongContextMenu(context, song, songs, index),
-                onDelete: () => _confirmDeleteSong(song),
-                onAddToPlaylist: () => _showAddToPlaylistDialog(song),
-                onAddToQueue: () {
-                  context.read<PlayerProvider>().addToQueue(song);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Añadida a la fila de reproducción')),
-                  );
-                },
-              );
-            },
+          child: Scrollbar(
+            child: ListView.builder(
+              padding: const EdgeInsets.only(bottom: 80),
+              itemCount: songs.length,
+              itemBuilder: (context, index) {
+                final song = songs[index];
+                final extra = song.downloadDate != null
+                    ? '${song.formattedFileSize} • ${song.formattedDownloadDate}'
+                    : song.formattedFileSize;
+                return SongTile(
+                  song: song,
+                  subtitleExtra: extra,
+                  onTap: () => context.read<PlayerProvider>().playQueue(songs, startIndex: index),
+                  onLongPress: () => _showSongContextMenu(context, song, songs, index),
+                  onDelete: () => _confirmDeleteSong(song),
+                  onAddToPlaylist: () => _showAddToPlaylistDialog(song),
+                  onAddToQueue: () {
+                    context.read<PlayerProvider>().addToQueue(song);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Añadida a la fila de reproducción')),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -466,25 +468,27 @@ class _LibraryScreenState extends State<LibraryScreen> {
         ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 80),
-      itemCount: artists.length,
-      itemBuilder: (context, index) {
-        final artist = artists[index];
-        final count = library.getSongsByArtist(artist).length;
-        return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: AppTheme.cardColor,
-            child: const Icon(Icons.person),
-          ),
-          title: Text(artist, style: const TextStyle(fontWeight: FontWeight.w500)),
-          subtitle: Text('$count canciones', style: const TextStyle(color: AppTheme.textSecondary)),
-          onTap: () {
-            final songs = library.getSongsByArtist(artist);
-            context.read<PlayerProvider>().playQueue(songs);
-          },
-        );
-      },
+    return Scrollbar(
+      child: ListView.builder(
+        padding: const EdgeInsets.only(bottom: 80),
+        itemCount: artists.length,
+        itemBuilder: (context, index) {
+          final artist = artists[index];
+          final count = library.getSongsByArtist(artist).length;
+          return ListTile(
+            leading: CircleAvatar(
+              backgroundColor: AppTheme.cardColor,
+              child: const Icon(Icons.person),
+            ),
+            title: Text(artist, style: const TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: Text('$count canciones', style: const TextStyle(color: AppTheme.textSecondary)),
+            onTap: () {
+              final songs = library.getSongsByArtist(artist);
+              context.read<PlayerProvider>().playQueue(songs);
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -501,26 +505,28 @@ class _LibraryScreenState extends State<LibraryScreen> {
         ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 80),
-      itemCount: albums.length,
-      itemBuilder: (context, index) {
-        final album = albums[index];
-        final songs = library.getSongsByAlbum(album);
-        return ListTile(
-          leading: Container(
-            width: 48, height: 48,
-            decoration: BoxDecoration(
-              color: AppTheme.cardColor,
-              borderRadius: BorderRadius.circular(6),
+    return Scrollbar(
+      child: ListView.builder(
+        padding: const EdgeInsets.only(bottom: 80),
+        itemCount: albums.length,
+        itemBuilder: (context, index) {
+          final album = albums[index];
+          final songs = library.getSongsByAlbum(album);
+          return ListTile(
+            leading: Container(
+              width: 48, height: 48,
+              decoration: BoxDecoration(
+                color: AppTheme.cardColor,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(Icons.album),
             ),
-            child: const Icon(Icons.album),
-          ),
-          title: Text(album, style: const TextStyle(fontWeight: FontWeight.w500)),
-          subtitle: Text('${songs.length} canciones', style: const TextStyle(color: AppTheme.textSecondary)),
-          onTap: () => context.read<PlayerProvider>().playQueue(songs),
-        );
-      },
+            title: Text(album, style: const TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: Text('${songs.length} canciones', style: const TextStyle(color: AppTheme.textSecondary)),
+            onTap: () => context.read<PlayerProvider>().playQueue(songs),
+          );
+        },
+      ),
     );
   }
 
