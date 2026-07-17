@@ -12,36 +12,34 @@ class DownloadsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: Consumer2<DownloadProvider, ImportProvider>(
+          builder: (context, provider, import, _) {
+            final hasActive = provider.pendingTasks.isNotEmpty ||
+                provider.downloadingTasks.isNotEmpty;
+            if (!hasActive) return const SizedBox.shrink();
+            return TextButton(
+              onPressed: () {
+                import.cancelImport();
+                for (final task in provider.activeTasks) {
+                  provider.cancelTask(task.id);
+                }
+              },
+              child: const Text('Cancelar todo'),
+            );
+          },
+        ),
         title: const Text('Descargas'),
         actions: [
-          Consumer2<DownloadProvider, ImportProvider>(
-            builder: (context, provider, import, _) {
-              final hasActive = provider.pendingTasks.isNotEmpty ||
-                  provider.downloadingTasks.isNotEmpty;
-              final hasFailed = provider.failedTasks.isNotEmpty;
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (hasActive)
-                    TextButton(
-                      onPressed: () {
-                        import.cancelImport();
-                        for (final task in provider.activeTasks) {
-                          provider.cancelTask(task.id);
-                        }
-                      },
-                      child: const Text('Cancelar todo'),
-                    ),
-                  if (hasFailed)
-                    TextButton(
-                      onPressed: () {
-                        for (final task in provider.failedTasks) {
-                          provider.retryTask(task.id);
-                        }
-                      },
-                      child: const Text('Reintentar todo'),
-                    ),
-                ],
+          Consumer<DownloadProvider>(
+            builder: (context, provider, _) {
+              if (provider.failedTasks.isEmpty) return const SizedBox.shrink();
+              return TextButton(
+                onPressed: () {
+                  for (final task in provider.failedTasks) {
+                    provider.retryTask(task.id);
+                  }
+                },
+                child: const Text('Reintentar todo'),
               );
             },
           ),
