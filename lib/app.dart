@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'providers/backup_provider.dart';
 import 'providers/import_provider.dart';
 import 'providers/library_provider.dart';
+import 'providers/navigation_provider.dart';
 import 'providers/player_provider.dart';
 import 'providers/search_provider.dart';
 import 'providers/download_provider.dart';
@@ -48,6 +49,7 @@ class _PrecariumAppState extends State<PrecariumApp> {
               ChangeNotifierProvider(create: (_) => DownloadProvider()),
               ChangeNotifierProvider(create: (_) => BackupProvider()..load()),
               ChangeNotifierProvider(create: (_) => ImportProvider()),
+              ChangeNotifierProvider(create: (_) => NavigationProvider()),
             ],
             child: MaterialApp(
               title: 'Precarium',
@@ -72,7 +74,6 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
-  int _currentIndex = 0;
   final MediaNotificationService _mediaNotification = MediaNotificationService();
 
   final List<Widget> _screens = const [
@@ -103,16 +104,18 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final nav = context.watch<NavigationProvider>();
+    final currentIndex = nav.tabIndex;
     return Scaffold(
       body: Column(
         children: [
-          Expanded(child: _screens[_currentIndex]),
+          Expanded(child: _screens[currentIndex]),
           const MiniPlayer(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        currentIndex: currentIndex,
+        onTap: (index) => nav.switchToTab(index),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.library_music), label: 'Biblioteca'),
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Buscar'),

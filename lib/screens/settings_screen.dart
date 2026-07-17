@@ -240,7 +240,14 @@ class _BackupSection extends StatefulWidget {
 }
 
 class _BackupSectionState extends State<_BackupSection> {
+  bool _cancelled = false;
   BackupProvider get _backup => widget.backup;
+
+  @override
+  void dispose() {
+    _cancelled = true;
+    super.dispose();
+  }
 
   Future<void> _onExport() async {
     try {
@@ -257,7 +264,7 @@ class _BackupSectionState extends State<_BackupSection> {
             themeMode: settings.themeMode.index,
             primaryColor: settings.primaryColor.toARGB32(),
           );
-      if (!mounted) return;
+      if (!mounted || _cancelled) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Copia de seguridad creada correctamente'),
@@ -265,7 +272,7 @@ class _BackupSectionState extends State<_BackupSection> {
         ),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || _cancelled) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: ${e.toString()}'),
@@ -279,7 +286,7 @@ class _BackupSectionState extends State<_BackupSection> {
     try {
       await context.read<BackupProvider>().importBackup(
             onRestore: (songs, playlists, playlistSongs, settings) {
-              if (!mounted) return;
+              if (!mounted || _cancelled) return;
               if (settings != null) {
                 final s = context.read<SettingsProvider>();
                 final themeModeIndex = settings['themeMode'] as int?;
@@ -295,7 +302,7 @@ class _BackupSectionState extends State<_BackupSection> {
               context.read<LibraryProvider>().loadLibrary();
             },
           );
-      if (!mounted) return;
+      if (!mounted || _cancelled) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Restauración completada'),
@@ -303,7 +310,7 @@ class _BackupSectionState extends State<_BackupSection> {
         ),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || _cancelled) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: ${e.toString()}'),
@@ -396,20 +403,27 @@ class _DriveSection extends StatefulWidget {
 }
 
 class _DriveSectionState extends State<_DriveSection> {
+  bool _cancelled = false;
   BackupProvider get _backup => widget.backup;
+
+  @override
+  void dispose() {
+    _cancelled = true;
+    super.dispose();
+  }
 
   Future<void> _onConnect() async {
     try {
       await context.read<BackupProvider>().connectToDrive();
-      if (!mounted) return;
+      if (!mounted || _cancelled) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Conectado a Google Drive'),
+          content: Text('Restauración completada'),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || _cancelled) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
       );
@@ -418,7 +432,7 @@ class _DriveSectionState extends State<_DriveSection> {
 
   Future<void> _onDisconnect() async {
     await context.read<BackupProvider>().disconnectFromDrive();
-    if (!mounted) return;
+    if (!mounted || _cancelled) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Desconectado de Google Drive')),
     );
@@ -439,7 +453,7 @@ class _DriveSectionState extends State<_DriveSection> {
         themeMode: settings.themeMode.index,
         primaryColor: settings.primaryColor.toARGB32(),
       );
-      if (!mounted) return;
+      if (!mounted || _cancelled) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Copia de seguridad subida a Drive'),
@@ -447,7 +461,7 @@ class _DriveSectionState extends State<_DriveSection> {
         ),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || _cancelled) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
       );
@@ -459,7 +473,7 @@ class _DriveSectionState extends State<_DriveSection> {
       final backupProv = context.read<BackupProvider>();
       final message = await backupProv.importFromDrive(
         onRestore: (songs, playlists, playlistSongs, settings) {
-          if (!mounted) return;
+          if (!mounted || _cancelled) return;
           if (settings != null) {
             final s = context.read<SettingsProvider>();
             final themeModeIndex = settings['themeMode'] as int?;
@@ -475,12 +489,12 @@ class _DriveSectionState extends State<_DriveSection> {
           context.read<LibraryProvider>().loadLibrary();
         },
       );
-      if (!mounted) return;
+      if (!mounted || _cancelled) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message), backgroundColor: Colors.green),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || _cancelled) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
       );

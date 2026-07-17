@@ -6,6 +6,7 @@ import '../services/csv_import_service.dart';
 import '../providers/library_provider.dart';
 import '../providers/download_provider.dart';
 import '../providers/import_provider.dart';
+import '../providers/navigation_provider.dart';
 import '../theme/app_theme.dart';
 
 enum _ImportStep { input, selecting, downloading, done }
@@ -36,6 +37,7 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
   String? _error;
 
   Set<int> _existingIndices = {};
+  final _tracksScrollController = ScrollController();
 
   @override
   void initState() {
@@ -54,6 +56,7 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
   @override
   void dispose() {
     _playlistUrlController.dispose();
+    _tracksScrollController.dispose();
     super.dispose();
   }
 
@@ -148,9 +151,8 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
       libraryProvider: context.read<LibraryProvider>(),
     );
 
-    setState(() {
-      _step = _ImportStep.downloading;
-    });
+    context.read<NavigationProvider>().switchToTab(2);
+    Navigator.popUntil(context, (route) => route.isFirst);
   }
 
   // ── Helpers ──
@@ -488,7 +490,9 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
         const Divider(height: 1),
         Expanded(
           child: Scrollbar(
+            controller: _tracksScrollController,
             child: ListView.builder(
+            controller: _tracksScrollController,
             itemCount: _tracks.length,
             itemBuilder: (context, index) {
               final track = _tracks[index];

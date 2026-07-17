@@ -22,6 +22,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
   _LibraryTab _currentTab = _LibraryTab.songs;
   final _searchController = TextEditingController();
   bool _isSearching = false;
+  final _songsScrollController = ScrollController();
+  final _artistsScrollController = ScrollController();
+  final _albumsScrollController = ScrollController();
 
   @override
   void initState() {
@@ -37,6 +40,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _songsScrollController.dispose();
+    _artistsScrollController.dispose();
+    _albumsScrollController.dispose();
     super.dispose();
   }
 
@@ -425,7 +431,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
         Expanded(
           child: Scrollbar(
+            controller: _songsScrollController,
             child: ListView.builder(
+              controller: _songsScrollController,
               padding: const EdgeInsets.only(bottom: 80),
               itemCount: songs.length,
               itemBuilder: (context, index) {
@@ -469,7 +477,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
     }
     return Scrollbar(
+      controller: _artistsScrollController,
       child: ListView.builder(
+        controller: _artistsScrollController,
         padding: const EdgeInsets.only(bottom: 80),
         itemCount: artists.length,
         itemBuilder: (context, index) {
@@ -506,7 +516,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
     }
     return Scrollbar(
+      controller: _albumsScrollController,
       child: ListView.builder(
+        controller: _albumsScrollController,
         padding: const EdgeInsets.only(bottom: 80),
         itemCount: albums.length,
         itemBuilder: (context, index) {
