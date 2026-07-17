@@ -12,23 +12,28 @@ class DownloadsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: Consumer2<DownloadProvider, ImportProvider>(
+        title: Consumer2<DownloadProvider, ImportProvider>(
           builder: (context, provider, import, _) {
             final hasActive = provider.pendingTasks.isNotEmpty ||
                 provider.downloadingTasks.isNotEmpty;
-            if (!hasActive) return const SizedBox.shrink();
-            return TextButton(
-              onPressed: () {
-                import.cancelImport();
-                for (final task in provider.activeTasks) {
-                  provider.cancelTask(task.id);
-                }
-              },
-              child: const Text('Cancelar todo'),
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (hasActive)
+                  TextButton(
+                    onPressed: () {
+                      import.cancelImport();
+                      for (final task in provider.activeTasks) {
+                        provider.cancelTask(task.id);
+                      }
+                    },
+                    child: const Text('Cancelar todo'),
+                  ),
+                const Text('Descargas'),
+              ],
             );
           },
         ),
-        title: const Text('Descargas'),
         actions: [
           Consumer<DownloadProvider>(
             builder: (context, provider, _) {

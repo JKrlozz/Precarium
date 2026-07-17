@@ -433,7 +433,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           child: Scrollbar(
             controller: _songsScrollController,
             thumbVisibility: true,
-            thickness: 8,
+            interactive: true,
             child: ListView.builder(
               controller: _songsScrollController,
               padding: const EdgeInsets.only(bottom: 80),
@@ -481,7 +481,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     return Scrollbar(
       controller: _artistsScrollController,
       thumbVisibility: true,
-      thickness: 8,
+      interactive: true,
       child: ListView.builder(
         controller: _artistsScrollController,
         padding: const EdgeInsets.only(bottom: 80),
@@ -522,7 +522,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     return Scrollbar(
       controller: _albumsScrollController,
       thumbVisibility: true,
-      thickness: 8,
+      interactive: true,
       child: ListView.builder(
         controller: _albumsScrollController,
         padding: const EdgeInsets.only(bottom: 80),

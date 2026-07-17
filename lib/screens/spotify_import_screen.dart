@@ -481,7 +481,7 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
           child: Scrollbar(
             controller: _tracksScrollController,
             thumbVisibility: true,
-            thickness: 8,
+            interactive: true,
             child: ListView.builder(
             controller: _tracksScrollController,
             itemCount: _tracks.length,
