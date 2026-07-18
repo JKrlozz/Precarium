@@ -21,13 +21,13 @@ Sin servidores, sin suscripciones — todo funciona directamente en tu dispositi
 
 ## ✨ Características
 
-- **🔍 Buscador integrado** — Busca canciones, artistas o álbumes directamente desde la app
-- **⬇️ Descarga de audio** — Extrae el audio de cualquier video de YouTube en formato M4A/Opus mediante NewPipe Extractor
-- **📋 Importar desde Spotify** — Importa playlists completas desde Spotify y descarga automáticamente cada canción
-- **▶️ Reproductor local** — Reproduce tu música descargada con control de lista, reproducción aleatoria y repetición
-- **☁️ Respaldo en Google Drive** — Respaldá tu biblioteca, playlists y configuración en tu Drive personal
-- **🤖 Respaldo automático programado** — Programá respaldos periódicos a la hora que prefieras (incluso con la app cerrada)
-- **⬆️ Restauración completa** — Restaurá desde Drive incluyendo archivos de audio o solo metadatos
+- **Buscador integrado** — Busca canciones, artistas o álbumes directamente desde la app
+- **Descarga de audio** — Extrae el audio de cualquier video de YouTube en formato M4A/Opus mediante NewPipe Extractor
+- **Importar desde Spotify** — Importa playlists completas desde Spotify y descarga automáticamente cada canción
+- **Reproductor local** — Reproduce tu música descargada con control de lista, reproducción aleatoria y repetición
+- **Respaldo en Google Drive** — Respaldá tu biblioteca, playlists y configuración en tu Drive personal
+- **Respaldo automatico programado** — Programa respaldos periodicos a la hora que prefieras (incluso con la app cerrada)
+- **Restauracion completa** — Restaura desde Drive incluyendo archivos de audio o solo metadatos
 
 ## 🛠️ Tecnologías
 
