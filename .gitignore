@@ -55,3 +55,9 @@ app.*.map.json
 
 # Secrets / API keys
 /lib/secrets.dart
+
+# Web landing page (separate repo)
+/site/
+
+# Release APK (uploaded to GitHub Releases, not in repo)
+*.apk
