@@ -1,68 +1,69 @@
 <div align="center">
+  <img src="https://jkrlozz.github.io/Precarium-Web/ic_launcher.png" width="96" height="96" alt="Precarium">
   <h1>Precarium</h1>
-  <p><strong>Descarga y organiza música de YouTube en tu Android</strong></p>
+  <p><strong>Descarga y organiza musica de YouTube en tu Android</strong></p>
   <p>
     <a href="https://github.com/JKrlozz/Precarium/releases">Descargar APK</a>
     ·
-    <a href="https://github.com/JKrlozz/Precarium-Web">Sitio web</a>
+    <a href="https://jkrlozz.github.io/Precarium-Web/">Sitio web</a>
     ·
-    <a href="https://github.com/users/JKrlozz/projects">Reportar problema</a>
+    <a href="https://github.com/JKrlozz/Precarium/issues">Reportar problema</a>
   </p>
 </div>
 
 ---
 
-## 🎯 Descripción
+## Descripcion
 
-**Precarium** es una aplicación Android nativa (Flutter) que permite buscar canciones en YouTube, extraer el audio y descargarlo al almacenamiento local para escucharlo sin conexión. También organiza tu biblioteca musical, importa playlists desde Spotify y respalda tus canciones en Google Drive.
+**Precarium** es una aplicacion Android nativa (Flutter) que permite buscar canciones en YouTube, extraer el audio y descargarlo al almacenamiento local para escucharlo sin conexion. Tambien organiza tu biblioteca musical, importa playlists desde Spotify y respalda tus canciones en Google Drive.
 
 Sin servidores, sin suscripciones — todo funciona directamente en tu dispositivo.
 
-## ✨ Características
+## Caracteristicas
 
-- **Buscador integrado** — Busca canciones, artistas o álbumes directamente desde la app
+- **Buscador integrado** — Busca canciones, artistas o albumes directamente desde la app
 - **Descarga de audio** — Extrae el audio de cualquier video de YouTube en formato M4A/Opus mediante NewPipe Extractor
-- **Importar desde Spotify** — Importa playlists completas desde Spotify y descarga automáticamente cada canción
-- **Reproductor local** — Reproduce tu música descargada con control de lista, reproducción aleatoria y repetición
-- **Respaldo en Google Drive** — Respaldá tu biblioteca, playlists y configuración en tu Drive personal
+- **Importar desde Spotify** — Importa playlists completas desde Spotify y descarga automaticamente cada cancion
+- **Reproductor local** — Reproduce tu musica descargada con control de lista, reproduccion aleatoria y repeticion
+- **Respaldo en Google Drive** — Respaldá tu biblioteca, playlists y configuracion en tu Drive personal
 - **Respaldo automatico programado** — Programa respaldos periodicos a la hora que prefieras (incluso con la app cerrada)
 - **Restauracion completa** — Restaura desde Drive incluyendo archivos de audio o solo metadatos
 
-## 🛠️ Tecnologías
+## Tecnologias
 
-| Capa | Tecnología |
+| Capa | Tecnologia |
 |------|-----------|
 | **Framework** | Flutter 3.x (Dart) |
-| **Reproducción** | just_audio |
-| **Extracción YouTube** | NewPipe Extractor (nativo Kotlin) + youtube_explode_dart |
+| **Reproduccion** | just_audio |
+| **Extraccion YouTube** | NewPipe Extractor (nativo Kotlin) + youtube_explode_dart |
 | **Base de datos** | sqflite (SQLite local) |
-| **Autenticación Drive** | google_sign_in + Google Drive API v3 (OAuth 2.0) |
-| **Respaldo automático** | android_alarm_manager_plus |
+| **Autenticacion Drive** | google_sign_in + Google Drive API v3 (OAuth 2.0) |
+| **Respaldo automatico** | android_alarm_manager_plus |
 | **Background** | wakelock_plus (CPU activa en descargas) |
 | **Estado** | Provider (ChangeNotifier) |
 
-## 📁 Estructura del proyecto
+## Estructura del proyecto
 
 ```
 lib/
 ├── models/           # Modelos de datos (Song, DownloadTask, etc.)
-├── providers/        # Lógica de estado (ChangeNotifier providers)
+├── providers/        # Logica de estado (ChangeNotifier providers)
 ├── screens/          # Pantallas de la UI
-├── services/         # Servicios (Drive, descarga, búsqueda, DB, etc.)
+├── services/         # Servicios (Drive, descarga, busqueda, DB, etc.)
 ├── widgets/          # Widgets reutilizables
 ├── theme/            # Temas claro/oscuro
-├── app.dart          # Widget raíz de la app
+├── app.dart          # Widget raiz de la app
 └── main.dart         # Punto de entrada
 android/
-├── app/src/main/kotlin/   # Código nativo Kotlin
-│   ├── NativeExecutor.kt        # Extracción y descarga de audio
+├── app/src/main/kotlin/   # Codigo nativo Kotlin
+│   ├── NativeExecutor.kt        # Extraccion y descarga de audio
 │   ├── NewPipeDownloader.kt     # Downloader para NewPipe
-│   ├── MediaNotificationPlugin.kt  # Notificaciones de reproducción
+│   ├── MediaNotificationPlugin.kt  # Notificaciones de reproduccion
 │   └── MediaForegroundService.kt   # Servicio foreground de audio
 └── app/src/main/AndroidManifest.xml
 ```
 
-## 🚀 Compilación
+## Compilacion
 
 ```bash
 # Requisitos: Flutter SDK 3.12+, Android SDK 36
@@ -77,21 +78,21 @@ flutter run
 flutter build apk --release
 ```
 
-### Notas de compilación
+### Notas de compilacion
 - `compileSdk = 36`
 - Se requiere un **keystore release** configurado en `android/app/build.gradle.kts`
 - ProGuard activado con reglas en `android/app/proguard-rules.pro`
 
-## 📦 Descargas
+## Descargas
 
-Los APK release están disponibles en la sección [Releases](https://github.com/JKrlozz/Precarium/releases) de GitHub.
+Los APK release estan disponibles en la seccion [Releases](https://github.com/JKrlozz/Precarium/releases) de GitHub.
 
-## 📄 Licencia
+## Licencia
 
-Este proyecto es de código abierto. Consultá los términos de servicio y política de privacidad en el [sitio web oficial](https://jkrlozz.github.io/Precarium-Web/).
+Este proyecto es de codigo abierto. Consulta los terminos de servicio y politica de privacidad en el [sitio web oficial](https://jkrlozz.github.io/Precarium-Web/).
 
 ---
 
 <div align="center">
-  <sub>Precarium no está afiliada ni respaldada por YouTube, Google o Spotify.</sub>
+  <sub>Precarium no esta afiliada ni respaldada por YouTube, Google o Spotify.</sub>
 </div>
