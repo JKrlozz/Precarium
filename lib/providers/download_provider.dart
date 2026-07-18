@@ -185,7 +185,7 @@ class DownloadProvider extends ChangeNotifier {
       _activeCount++;
       _updateWakeLock();
       notifyListeners();
-      _downloadService.startDownload(videoId).whenComplete(() {
+      _downloadService.startDownload(videoId, artist: _tasks[taskIndex].artist).whenComplete(() {
         _activeCount--;
         _updateWakeLock();
         notifyListeners();

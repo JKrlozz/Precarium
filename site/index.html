@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Precarium</title>
+  <link rel="icon" href="ic_launcher.png">
+  <meta name="description" content="Precarium - Aplicación Android para descargar audio de YouTube y organizar tu biblioteca musical local.">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #121212;
+      color: #e0e0e0;
+      line-height: 1.6;
+    }
+    .container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+    .logo { width: 80px; height: 80px; border-radius: 20px; margin-bottom: 16px; }
+    h1 { font-size: 2.5rem; color: #fff; margin-bottom: 8px; }
+    .tagline { font-size: 1.2rem; color: #1db954; font-weight: 500; margin-bottom: 24px; }
+    .purpose {
+      background: #1e1e1e; border: 1px solid #333; border-radius: 12px;
+      padding: 24px; margin-bottom: 32px;
+    }
+    .purpose p { font-size: 1.1rem; color: #ccc; margin: 0; }
+    h3 { color: #fff; margin: 32px 0 12px; font-size: 1.2rem; }
+    p { margin-bottom: 16px; color: #aaa; }
+    ul { margin: 0 0 16px 20px; }
+    li { margin-bottom: 8px; color: #aaa; }
+    .features { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0; }
+    .feature {
+      background: #1e1e1e; border: 1px solid #333; border-radius: 12px; padding: 20px;
+    }
+    .feature h4 { color: #fff; margin-bottom: 6px; }
+    .feature p { font-size: 0.9rem; margin: 0; }
+    .btn {
+      display: inline-block; background: #1db954; color: #000;
+      padding: 12px 32px; border-radius: 24px; text-decoration: none;
+      font-weight: 600; margin: 16px 0;
+    }
+    .btn:hover { background: #1ed760; }
+    .footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid #333; font-size: 0.85rem; }
+    .footer a { color: #1db954; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+    .note { background: #2a2a2a; border-radius: 8px; padding: 12px 16px; font-size: 0.9rem; color: #999; margin: 16px 0; }
+    @media (max-width: 600px) { .features { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img class="logo" src="ic_launcher.png" alt="Precarium">
+    <h1>Precarium</h1>
+    <p class="tagline">Descarga audio de YouTube en tu Android</p>
+
+    <div class="purpose">
+      <p><strong>Precarium</strong> es una aplicación Android que permite buscar canciones en YouTube, extraer el audio y descargarlo al almacenamiento local del dispositivo para escucharlo sin conexión. También organiza tu biblioteca musical, importa playlists desde Spotify y respalda tus canciones en Google Drive.</p>
+    </div>
+
+    <a class="btn" href="#" onclick="alert('Descarga disponible próximamente.')">Descargar APK</a>
+
+    <h3>Características principales</h3>
+    <div class="features">
+      <div class="feature">
+        <h4>🔍 Buscador integrado</h4>
+        <p>Busca canciones, artistas o álbumes directamente desde la app.</p>
+      </div>
+      <div class="feature">
+        <h4>⬇️ Descarga de audio</h4>
+        <p>Extrae el audio de cualquier video de YouTube en formato M4A/Opus.</p>
+      </div>
+      <div class="feature">
+        <h4>📋 Importar desde Spotify</h4>
+        <p>Importa playlists completas y descarga cada canción automáticamente.</p>
+      </div>
+      <div class="feature">
+        <h4>▶️ Reproductor local</h4>
+        <p>Reproduce tu música con control de lista, aleatorio y repetición.</p>
+      </div>
+      <div class="feature">
+        <h4>☁️ Respaldo en Drive</h4>
+        <p>Respaldá tu biblioteca y configuración en Google Drive.</p>
+      </div>
+      <div class="feature">
+        <h4>🤖 Respaldo automático</h4>
+        <p>Programá respaldos periódicos a la hora que prefieras.</p>
+      </div>
+    </div>
+
+    <h3>Cómo funciona</h3>
+    <ol style="margin: 0 0 16px 20px; color: #aaa;">
+      <li>Buscá una canción o pegá un enlace de YouTube</li>
+      <li>La app extrae el audio mediante NewPipe Extractor (código abierto)</li>
+      <li>El archivo se descarga al almacenamiento local de tu dispositivo</li>
+      <li>Escuchá tu música sin conexión, cuando quieras</li>
+    </ol>
+
+    <p>Precarium no almacena ni comparte tus datos. Toda la información permanece en tu dispositivo o en tu cuenta de Google Drive si usás la función de respaldo.</p>
+
+    <div class="note">Precarium no está afiliada ni respaldada por YouTube o Google. El usuario es responsable de cumplir con las leyes de copyright aplicables.</div>
+
+    <div class="footer">
+      <p>&copy; 2026 Precarium</p>
+      <p>
+        <a href="privacy.html">Política de Privacidad</a> &middot;
+        <a href="terms.html">Términos de Servicio</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

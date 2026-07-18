@@ -31,6 +31,31 @@ class ImportProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  static String _normalize(String s) {
+    return s.trim().toLowerCase().replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+  }
+
+  bool _matchesExisting(String importName, String importArtist, List<Song> librarySongs) {
+    final needleName = _normalize(importName);
+    final needleArtist = _normalize(importArtist);
+    if (needleName.isEmpty) return false;
+
+    return librarySongs.any((s) {
+      final libName = _normalize(s.title);
+      final libArtist = _normalize(s.artist);
+
+      if (needleArtist.isNotEmpty && libArtist.isNotEmpty) {
+        if (libName.contains(needleName) || needleName.contains(libName)) {
+          if (libArtist.contains(needleArtist) || needleArtist.contains(libArtist)) {
+            return true;
+          }
+        }
+      }
+
+      return libName.contains(needleName) || needleName.contains(libName);
+    });
+  }
+
   Future<void> startImport({
     required List<String> names,
     required List<String> artists,
@@ -46,7 +71,7 @@ class ImportProvider extends ChangeNotifier {
     _failed = 0;
     _skipped = 0;
     _total = names.length;
-    _statusText = 'Iniciando importación...';
+    _statusText = 'Iniciando importacion...';
     notifyListeners();
 
     for (int i = 0; i < names.length; i++) {
@@ -54,7 +79,7 @@ class ImportProvider extends ChangeNotifier {
       _statusText = '(${i + 1}/$_total) Buscando ${names[i]}...';
       notifyListeners();
 
-      if (_matchesExisting(names[i], existingLibrarySongs)) {
+      if (_matchesExisting(names[i], artists[i], existingLibrarySongs)) {
         _skipped++;
         notifyListeners();
         continue;
@@ -93,18 +118,6 @@ class ImportProvider extends ChangeNotifier {
     _statusText = '';
     notifyListeners();
     libraryProvider.loadLibrary();
-  }
-
-  bool _matchesExisting(String importName, List<Song> librarySongs) {
-    String normalize(String s) {
-      return s.trim().toLowerCase().replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
-    }
-    final needle = normalize(importName);
-    if (needle.isEmpty) return false;
-    return librarySongs.any((s) {
-      final title = normalize(s.title);
-      return title.contains(needle) || needle.contains(title);
-    });
   }
 
   void reset() {

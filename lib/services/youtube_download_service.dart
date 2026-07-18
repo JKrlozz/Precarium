@@ -10,6 +10,7 @@ enum DownloadState { pending, downloading, completed, cancelled, failed }
 class DownloadProgress {
   final String videoId;
   final String title;
+  final String? artist;
   final double progress;
   final DownloadState state;
   final String? filePath;
@@ -18,6 +19,7 @@ class DownloadProgress {
   DownloadProgress({
     required this.videoId,
     required this.title,
+    this.artist,
     this.progress = 0.0,
     this.state = DownloadState.pending,
     this.filePath,
@@ -27,6 +29,7 @@ class DownloadProgress {
   DownloadProgress copyWith({
     String? videoId,
     String? title,
+    String? artist,
     double? progress,
     DownloadState? state,
     String? filePath,
@@ -35,6 +38,7 @@ class DownloadProgress {
     return DownloadProgress(
       videoId: videoId ?? this.videoId,
       title: title ?? this.title,
+      artist: artist ?? this.artist,
       progress: progress ?? this.progress,
       state: state ?? this.state,
       filePath: filePath ?? this.filePath,
@@ -81,9 +85,9 @@ class YouTubeDownloadService {
         msg.contains('host unreachable');
   }
 
-  Future<DownloadProgress> startDownload(String videoId) async {
+  Future<DownloadProgress> startDownload(String videoId, {String? artist}) async {
     _cancelled.remove(videoId);
-    var progress = DownloadProgress(videoId: videoId, title: '');
+    var progress = DownloadProgress(videoId: videoId, title: '', artist: artist);
     _emit(progress);
 
     for (int attempt = 0; attempt <= _maxRetries; attempt++) {
@@ -98,14 +102,18 @@ class YouTubeDownloadService {
 
         final data = json.decode(jsonStr!) as Map<String, dynamic>;
         final audioUrl = data['url'] as String;
-        final title = _sanitizeFileName(data['title'] as String? ?? 'Unknown');
+        final rawTitle = data['title'] as String? ?? 'Unknown';
         final format = data['format'] as String? ?? 'm4a';
 
-        progress = progress.copyWith(title: title, state: DownloadState.downloading, progress: 0.0);
+        final safeArtist = artist != null ? _sanitizeFileName(artist) : null;
+        final safeTitle = _sanitizeFileName(rawTitle);
+        final fileName = safeArtist != null ? '$safeArtist - $safeTitle.$format' : '$safeTitle.$format';
+
+        progress = progress.copyWith(title: rawTitle, artist: artist, state: DownloadState.downloading, progress: 0.0);
         _emit(progress);
 
         final dir = await _getDownloadDirectory();
-        final filePath = '${dir.path}${Platform.pathSeparator}$title.$format';
+        final filePath = '${dir.path}${Platform.pathSeparator}$fileName';
 
         if (_isCancelled(videoId)) return _cancelledResult(videoId);
 
@@ -170,7 +178,7 @@ class YouTubeDownloadService {
   }
 
   String _sanitizeFileName(String name) {
-    return name.replaceAll(RegExp(r'[<>"/\\|?*]'), '_').trim();
+    return name.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
   }
 
   void _emit(DownloadProgress p) {
