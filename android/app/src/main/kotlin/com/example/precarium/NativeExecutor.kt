@@ -23,6 +23,7 @@ class NativeExecutor(private val context: Context) {
         .writeTimeout(120, TimeUnit.SECONDS)
         .followRedirects(true)
         .retryOnConnectionFailure(true)
+        .connectionPool(okhttp3.ConnectionPool(4, 30, TimeUnit.SECONDS))
         .build()
 
     private val background = Executors.newCachedThreadPool()
@@ -109,8 +110,8 @@ class NativeExecutor(private val context: Context) {
     fun extractAudio(videoId: String): String {
         val videoUrl = "https://youtube.com/watch?v=$videoId"
         var attempt = 0
-        val maxAttempts = 3
-        while (true) {
+        val maxAttempts = 2
+        while (attempt < maxAttempts) {
             try {
                 val service = NewPipe.getService(0)
                 val extractor = service.getStreamExtractor(videoUrl)
@@ -137,58 +138,49 @@ class NativeExecutor(private val context: Context) {
             } catch (e: Exception) {
                 attempt++
                 if (attempt >= maxAttempts) throw e
-                Thread.sleep(2000L * attempt)
+                Thread.sleep(1000L)
             }
         }
+        throw Exception("Failed to extract audio")
     }
 
     fun downloadAudio(url: String, filePath: String, videoId: String? = null) {
-        var attempt = 0
-        val maxAttempts = 2
-        while (attempt < maxAttempts) {
-            try {
-                val request = Request.Builder().url(url)
-                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
-                    .header("Accept", "*/*")
-                    .build()
-                val response = okHttp.newCall(request).execute()
-                if (!response.isSuccessful) throw Exception("HTTP ${response.code}")
-                val body = response.body ?: throw Exception("No response body")
-                val contentLength = body.contentLength()
-                val output = BufferedOutputStream(FileOutputStream(File(filePath)))
-                var lastReportedPct = -1
-                try {
-                    val input = body.byteStream()
-                    val buffer = ByteArray(262144)
-                    var totalRead = 0L
-                    var bytesRead: Int
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                        totalRead += bytesRead
-                        if (contentLength > 0) {
-                            val pct = ((totalRead.toDouble() / contentLength.toDouble()) * 100).toInt()
-                            if (pct != lastReportedPct) {
-                                lastReportedPct = pct
-                                val map = HashMap<String, Any>()
-                                if (videoId != null) map["videoId"] = videoId
-                                map["percent"] = pct
-                                mainHandler.post { progressSink?.success(map) }
-                            }
-                        }
+        val request = Request.Builder().url(url)
+            .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+            .header("Accept", "*/*")
+            .header("Range", "bytes=0-")
+            .build()
+        val response = okHttp.newCall(request).execute()
+        if (!response.isSuccessful) throw Exception("HTTP ${response.code}")
+        val body = response.body ?: throw Exception("No response body")
+        val contentLength = body.contentLength()
+        val output = BufferedOutputStream(FileOutputStream(File(filePath)))
+        var lastReportedPct = -1
+        try {
+            val input = body.byteStream()
+            val buffer = ByteArray(1048576)
+            var totalRead = 0L
+            var bytesRead: Int
+            while (input.read(buffer).also { bytesRead = it } != -1) {
+                output.write(buffer, 0, bytesRead)
+                totalRead += bytesRead
+                if (contentLength > 0) {
+                    val pct = ((totalRead.toDouble() / contentLength.toDouble()) * 100).toInt()
+                    if (pct != lastReportedPct) {
+                        lastReportedPct = pct
+                        val map = HashMap<String, Any>()
+                        if (videoId != null) map["videoId"] = videoId
+                        map["percent"] = pct
+                        mainHandler.post { progressSink?.success(map) }
                     }
-                    val finalMap = HashMap<String, Any>()
-                    if (videoId != null) finalMap["videoId"] = videoId
-                    finalMap["percent"] = 100
-                    mainHandler.post { progressSink?.success(finalMap) }
-                } finally {
-                    output.close()
                 }
-                return
-            } catch (e: SocketException) {
-                attempt++
-                if (attempt >= maxAttempts) throw e
-                Thread.sleep(2000L * attempt)
             }
+            val finalMap = HashMap<String, Any>()
+            if (videoId != null) finalMap["videoId"] = videoId
+            finalMap["percent"] = 100
+            mainHandler.post { progressSink?.success(finalMap) }
+        } finally {
+            output.close()
         }
     }
 
