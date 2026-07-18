@@ -1,5 +1,4 @@
 <div align="center">
-  <img src="site/ic_launcher.png" width="96" height="96" alt="Precarium">
   <h1>Precarium</h1>
   <p><strong>Descarga y organiza música de YouTube en tu Android</strong></p>
   <p>
@@ -61,7 +60,6 @@ android/
 │   ├── MediaNotificationPlugin.kt  # Notificaciones de reproducción
 │   └── MediaForegroundService.kt   # Servicio foreground de audio
 └── app/src/main/AndroidManifest.xml
-site/                 # Página web del proyecto (landing page)
 ```
 
 ## 🚀 Compilación
