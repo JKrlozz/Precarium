@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -66,60 +67,86 @@ class YouTubeDownloadService {
 
   Stream<DownloadProgress> get progressStream => _progressController.stream;
 
+  static const _maxRetries = 3;
+
+  bool _isNetworkError(Object e) {
+    final msg = e.toString().toLowerCase();
+    return msg.contains('unknownhost') ||
+        msg.contains('sockettimeout') ||
+        msg.contains('timeout') ||
+        msg.contains('socketexception') ||
+        msg.contains('connection refused') ||
+        msg.contains('connection reset') ||
+        msg.contains('network is unreachable') ||
+        msg.contains('host unreachable');
+  }
+
   Future<DownloadProgress> startDownload(String videoId) async {
     _cancelled.remove(videoId);
     var progress = DownloadProgress(videoId: videoId, title: '');
     _emit(progress);
 
-    try {
-      final jsonStr = await _channel
-          .invokeMethod<String>('extractAudio', {'videoId': videoId})
-          .timeout(const Duration(seconds: 30));
-
+    for (int attempt = 0; attempt <= _maxRetries; attempt++) {
       if (_isCancelled(videoId)) return _cancelledResult(videoId);
 
-      final data = json.decode(jsonStr!) as Map<String, dynamic>;
-      final audioUrl = data['url'] as String;
-      final title = _sanitizeFileName(data['title'] as String? ?? 'Unknown');
-      final format = data['format'] as String? ?? 'm4a';
+      try {
+        final jsonStr = await _channel
+            .invokeMethod<String>('extractAudio', {'videoId': videoId})
+            .timeout(const Duration(seconds: 90));
 
-      progress = progress.copyWith(title: title, state: DownloadState.downloading, progress: 0.0);
-      _emit(progress);
+        if (_isCancelled(videoId)) return _cancelledResult(videoId);
 
-      final dir = await _getDownloadDirectory();
-      final filePath = '${dir.path}${Platform.pathSeparator}$title.$format';
+        final data = json.decode(jsonStr!) as Map<String, dynamic>;
+        final audioUrl = data['url'] as String;
+        final title = _sanitizeFileName(data['title'] as String? ?? 'Unknown');
+        final format = data['format'] as String? ?? 'm4a';
 
-      if (_isCancelled(videoId)) return _cancelledResult(videoId);
+        progress = progress.copyWith(title: title, state: DownloadState.downloading, progress: 0.0);
+        _emit(progress);
 
-      await _channel
-          .invokeMethod<String>('download', {
-            'url': audioUrl,
-            'filePath': filePath,
-            'videoId': videoId,
-          })
-          .timeout(const Duration(minutes: 10));
+        final dir = await _getDownloadDirectory();
+        final filePath = '${dir.path}${Platform.pathSeparator}$title.$format';
 
-      if (_isCancelled(videoId)) {
-        if (await File(filePath).exists()) await File(filePath).delete();
-        return _cancelledResult(videoId);
+        if (_isCancelled(videoId)) return _cancelledResult(videoId);
+
+        await _channel
+            .invokeMethod<String>('download', {
+              'url': audioUrl,
+              'filePath': filePath,
+              'videoId': videoId,
+            })
+            .timeout(const Duration(minutes: 15));
+
+        if (_isCancelled(videoId)) {
+          if (await File(filePath).exists()) await File(filePath).delete();
+          return _cancelledResult(videoId);
+        }
+
+        final result = progress.copyWith(
+          state: DownloadState.completed,
+          progress: 1.0,
+          filePath: filePath,
+        );
+        _emit(result);
+        return result;
+      } catch (e) {
+        if (_isCancelled(videoId)) return _cancelledResult(videoId);
+
+        if (_isNetworkError(e) && attempt < _maxRetries) {
+          await Future.delayed(Duration(seconds: 1 << attempt));
+          continue;
+        }
+
+        final result = progress.copyWith(
+          state: DownloadState.failed,
+          error: e.toString(),
+        );
+        _emit(result);
+        return result;
       }
-
-      final result = progress.copyWith(
-        state: DownloadState.completed,
-        progress: 1.0,
-        filePath: filePath,
-      );
-      _emit(result);
-      return result;
-    } catch (e) {
-      if (_isCancelled(videoId)) return _cancelledResult(videoId);
-      final result = progress.copyWith(
-        state: DownloadState.failed,
-        error: e.toString(),
-      );
-      _emit(result);
-      return result;
     }
+
+    return progress.copyWith(state: DownloadState.failed, error: 'Max retries exceeded');
   }
 
   void cancelDownload(String videoId) {

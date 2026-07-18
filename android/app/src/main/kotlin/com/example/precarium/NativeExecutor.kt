@@ -18,10 +18,11 @@ import java.util.concurrent.TimeUnit
 class NativeExecutor(private val context: Context) {
 
     private val okHttp = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(60, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(120, TimeUnit.SECONDS)
         .followRedirects(true)
+        .retryOnConnectionFailure(true)
         .build()
 
     private val background = Executors.newCachedThreadPool()
@@ -107,28 +108,38 @@ class NativeExecutor(private val context: Context) {
 
     fun extractAudio(videoId: String): String {
         val videoUrl = "https://youtube.com/watch?v=$videoId"
-        val service = NewPipe.getService(0)
-        val extractor = service.getStreamExtractor(videoUrl)
-        extractor.fetchPage()
+        var attempt = 0
+        val maxAttempts = 3
+        while (true) {
+            try {
+                val service = NewPipe.getService(0)
+                val extractor = service.getStreamExtractor(videoUrl)
+                extractor.fetchPage()
 
-        val title = extractor.name ?: "Unknown"
-        val audioStreams = extractor.audioStreams ?: emptyList()
-        if (audioStreams.isEmpty()) throw Exception("No audio streams available")
+                val title = extractor.name ?: "Unknown"
+                val audioStreams = extractor.audioStreams ?: emptyList()
+                if (audioStreams.isEmpty()) throw Exception("No audio streams available")
 
-        val opusStreams = audioStreams.filter { it.format?.suffix == ".webm" }
-        val best = if (opusStreams.isNotEmpty()) {
-            opusStreams.maxByOrNull { it.averageBitrate ?: 0 } ?: opusStreams[0]
-        } else {
-            audioStreams.maxByOrNull { it.averageBitrate ?: 0 } ?: audioStreams[0]
+                val opusStreams = audioStreams.filter { it.format?.suffix == ".webm" }
+                val best = if (opusStreams.isNotEmpty()) {
+                    opusStreams.maxByOrNull { it.averageBitrate ?: 0 } ?: opusStreams[0]
+                } else {
+                    audioStreams.maxByOrNull { it.averageBitrate ?: 0 } ?: audioStreams[0]
+                }
+
+                val audioUrl = best.url ?: throw Exception("Audio stream has no URL")
+                val audioFormat = best.format
+                val rawSuffix = audioFormat?.suffix?.removePrefix(".") ?: "m4a"
+                val formatSuffix = if (rawSuffix == "webm") "opus" else rawSuffix
+                val bitrate = best.averageBitrate ?: 0
+
+                return """{"url":"${escapeJson(audioUrl)}","format":"$formatSuffix","bitrate":$bitrate,"title":"${escapeJson(title)}"}"""
+            } catch (e: Exception) {
+                attempt++
+                if (attempt >= maxAttempts) throw e
+                Thread.sleep(2000L * attempt)
+            }
         }
-
-        val audioUrl = best.url ?: throw Exception("Audio stream has no URL")
-        val audioFormat = best.format
-        val rawSuffix = audioFormat?.suffix?.removePrefix(".") ?: "m4a"
-        val formatSuffix = if (rawSuffix == "webm") "opus" else rawSuffix
-        val bitrate = best.averageBitrate ?: 0
-
-        return """{"url":"${escapeJson(audioUrl)}","format":"$formatSuffix","bitrate":$bitrate,"title":"${escapeJson(title)}"}"""
     }
 
     fun downloadAudio(url: String, filePath: String, videoId: String? = null) {
