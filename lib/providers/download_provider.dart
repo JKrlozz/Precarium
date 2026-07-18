@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../models/download_task.dart';
+import '../models/song.dart';
+import '../services/database_service.dart';
 import '../services/youtube_download_service.dart';
 
 class DownloadProvider extends ChangeNotifier {
@@ -70,6 +73,7 @@ class DownloadProvider extends ChangeNotifier {
 
     if (progress.state == DownloadState.completed) {
       _retryCounts.remove(progress.videoId);
+      _saveDownloadedSong(progress, _tasks[index].artist);
       _onDownloadComplete?.call();
     } else if (progress.state == DownloadState.failed) {
       _scheduleAutoRetry(progress.videoId);
@@ -200,6 +204,25 @@ class DownloadProvider extends ChangeNotifier {
     } else {
       WakelockPlus.disable();
     }
+  }
+
+  void _saveDownloadedSong(DownloadProgress progress, String? artist) {
+    if (progress.filePath == null) return;
+    try {
+      final file = File(progress.filePath!);
+      final id = progress.filePath!.hashCode.toString();
+      final safeTitle = progress.title.isNotEmpty ? progress.title : id;
+      final safeArtist = (artist != null && artist.isNotEmpty) ? artist : 'Unknown Artist';
+      final fileSize = file.existsSync() ? file.lengthSync() : 0;
+      DatabaseService.upsertSong(Song(
+        id: id,
+        title: safeTitle,
+        artist: safeArtist,
+        album: 'Unknown Album',
+        filePath: progress.filePath!,
+        fileSize: fileSize,
+      ));
+    } catch (_) {}
   }
 
   void clearCompleted() {
