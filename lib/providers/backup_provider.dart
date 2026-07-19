@@ -322,7 +322,9 @@ class BackupProvider extends ChangeNotifier {
       final existingKeys = <String>{};
       for (final f in existingFiles) {
         final name = f['name'] as String;
-        final body = name.substring(0, name.lastIndexOf('.'));
+        final dot = name.lastIndexOf('.');
+        if (dot < 0) continue;
+        final body = name.substring(0, dot);
         if (body.contains('_')) {
           existingKeys.add(body.split('_').first);
         } else {
@@ -342,14 +344,15 @@ class BackupProvider extends ChangeNotifier {
 
       if (toUpload.isEmpty) {
         _fullStatus = skipped > 0
-            ? 'Todas las canciones ya están en Drive ($skipped omitidas)'
+            ? 'Todas las canciones ya estan en Drive ($skipped omitidas)'
             : 'No hay canciones descargadas para respaldar';
         _fullProgress = 1.0;
         notifyListeners();
       } else {
+        int failedCount = 0;
         for (int i = 0; i < toUpload.length; i++) {
           final song = toUpload[i];
-          _fullStatus = 'Subiendo canción ${i + 1} de ${toUpload.length}: ${song.title}';
+          _fullStatus = 'Subiendo cancion ${i + 1} de ${toUpload.length}: ${song.title}';
           _fullProgress = 0.2 + (0.8 * (i / toUpload.length));
           notifyListeners();
 
@@ -358,11 +361,15 @@ class BackupProvider extends ChangeNotifier {
 
           try {
             await _driveService.uploadSongFile(songsFolderId, song.filePath, driveName);
-          } catch (_) {}
+          } catch (e) {
+            failedCount++;
+          }
         }
 
-        _fullStatus = 'Respaldo completo finalizado: ${toUpload.length} subidas'
-            '${skipped > 0 ? ', $skipped ya existentes' : ''}';
+        final uploaded = toUpload.length - failedCount;
+        _fullStatus = 'Respaldo completo finalizado: $uploaded subidas'
+            '${failedCount > 0 ? ", $failedCount fallidas" : ""}'
+            '${skipped > 0 ? ", $skipped ya existentes" : ""}';
         _fullProgress = 1.0;
         notifyListeners();
       }

@@ -214,19 +214,28 @@ class DriveBackupService {
 
   Future<List<Map<String, dynamic>>> listSongFiles(String folderId) async {
     final headers = await _getAuthHeaders();
+    final allFiles = <Map<String, dynamic>>[];
+    String? pageToken;
 
-    final listResponse = await http.get(
-      Uri.parse(
-          '$_driveApi/files?q=\'$folderId\' in parents and trashed=false&fields=files(id,name,size)'),
-      headers: headers,
-    );
+    do {
+      var url = '$_driveApi/files?q=\'$folderId\' in parents and trashed=false'
+          '&fields=files(id,name,size),nextPageToken&pageSize=1000';
+      if (pageToken != null) {
+        url += '&pageToken=$pageToken';
+      }
 
-    if (listResponse.statusCode != 200) return [];
+      final listResponse = await http.get(Uri.parse(url), headers: headers);
+      if (listResponse.statusCode != 200) break;
 
-    final data = json.decode(listResponse.body) as Map<String, dynamic>;
-    return (data['files'] as List<dynamic>? ?? [])
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
+      final data = json.decode(listResponse.body) as Map<String, dynamic>;
+      final files = data['files'] as List<dynamic>? ?? [];
+      for (final f in files) {
+        allFiles.add(Map<String, dynamic>.from(f as Map));
+      }
+      pageToken = data['nextPageToken'] as String?;
+    } while (pageToken != null);
+
+    return allFiles;
   }
 
   Future<String> uploadSongFile(String folderId, String localPath, String fileName) async {
