@@ -178,7 +178,15 @@ class YouTubeDownloadService {
   }
 
   String _sanitizeFileName(String name) {
-    return name.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
+    name = name.replaceAll('\u2013', '-').replaceAll('\u2014', '-');
+    name = name.replaceAll('\u2018', "'").replaceAll('\u2019', "'");
+    name = name.replaceAll('\u201C', '"').replaceAll('\u201D', '"');
+    name = name.replaceAll('\u00A0', ' ').replaceAll('\u200B', '');
+    name = name.replaceAll(RegExp(r'[<>:"/\\|?*#%&{}\[\]^~!@$+=`]'), '_');
+    name = name.replaceAll(RegExp(r'[\x00-\x1F\x7F]'), '');
+    name = name.replaceAll(RegExp(r'_+'), '_');
+    name = name.trim().replaceAll(RegExp(r'[. ]+$'), '');
+    return name;
   }
 
   void _emit(DownloadProgress p) {

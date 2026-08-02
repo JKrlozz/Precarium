@@ -113,48 +113,42 @@ class LibraryProvider extends ChangeNotifier {
 
     try {
       final dbSongs = await DatabaseService.getSongs();
-      final scannedSongs = await _scanService.scanDownloadedMusic();
+      final dbMap = {for (final s in dbSongs) s.filePath: s};
+
+      final localFiles = await _scanService.listLocalFiles();
 
       _songs.clear();
-      for (final scanned in scannedSongs) {
-        final existingIdx = dbSongs.indexWhere((s) => s.filePath == scanned.filePath);
-        if (existingIdx != -1) {
-          final existing = dbSongs[existingIdx];
+      for (final local in localFiles) {
+        final existing = dbMap[local.filePath];
+        if (existing != null) {
           _songs.add(Song(
             id: existing.id,
             title: existing.title,
             artist: existing.artist,
             album: existing.album,
-            albumArtPath: existing.albumArtPath ?? scanned.albumArtPath,
-            filePath: scanned.filePath,
-            duration: scanned.duration,
+            albumArtPath: existing.albumArtPath,
+            filePath: local.filePath,
+            duration: existing.duration,
             downloadDate: existing.downloadDate,
-            fileSize: scanned.fileSize,
+            fileSize: existing.fileSize,
           ));
         } else {
-          final fileDate = await File(scanned.filePath).lastModified();
-          _songs.add(Song(
-            id: scanned.id,
-            title: scanned.title,
-            artist: scanned.artist,
-            album: scanned.album,
-            albumArtPath: scanned.albumArtPath,
-            filePath: scanned.filePath,
-            duration: scanned.duration,
+          final dur = await _scanService.getFileDuration(File(local.filePath));
+          final size = await _scanService.getFileSize(File(local.filePath));
+          final fileDate = await File(local.filePath).lastModified();
+          final song = Song(
+            id: local.id,
+            title: local.title,
+            artist: local.artist,
+            album: local.album,
+            albumArtPath: local.albumArtPath,
+            filePath: local.filePath,
+            duration: dur,
             downloadDate: fileDate,
-            fileSize: scanned.fileSize,
-          ));
-          DatabaseService.upsertSong(Song(
-            id: scanned.id,
-            title: scanned.title,
-            artist: scanned.artist,
-            album: scanned.album,
-            albumArtPath: scanned.albumArtPath,
-            filePath: scanned.filePath,
-            duration: scanned.duration,
-            downloadDate: fileDate,
-            fileSize: scanned.fileSize,
-          ));
+            fileSize: size,
+          );
+          _songs.add(song);
+          DatabaseService.upsertSong(song);
         }
       }
 

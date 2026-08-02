@@ -53,10 +53,15 @@ class AudioPlayerService {
 
   void _onPlaybackEvent(PlaybackEvent event) async {
     if (event.processingState == ProcessingState.completed) {
-      if (_repeatMode != PlayerRepeatMode.all || _queue.length <= 1) return;
+      if (_queue.length <= 1) return;
       final counterAtEvent = _playCounter;
       await Future.delayed(const Duration(milliseconds: 150));
       if (_playCounter != counterAtEvent) return;
+
+      final nextIndex = _currentIndex + 1;
+      if (nextIndex >= _queue.length) {
+        if (_repeatMode != PlayerRepeatMode.all) return;
+      }
       _advanceToNext();
     }
   }

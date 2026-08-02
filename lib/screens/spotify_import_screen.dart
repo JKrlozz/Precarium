@@ -167,23 +167,15 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
     }
   }
 
-  bool _matchesExisting(String importName, List<Song> librarySongs) {
-    String normalize(String s) {
-      return s.trim().toLowerCase().replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
-    }
-    final needle = normalize(importName);
-    if (needle.isEmpty) return false;
-    return librarySongs.any((s) {
-      final title = normalize(s.title);
-      return title.contains(needle) || needle.contains(title);
-    });
+  bool _matchesExisting(String importName, String importArtist, List<Song> librarySongs) {
+    return ImportProvider.matchesExisting(importName, importArtist, librarySongs);
   }
 
   void _computeExistingIndices() {
     _existingIndices = {};
     final songs = context.read<LibraryProvider>().songs.toList();
     for (int i = 0; i < _tracks.length; i++) {
-      if (_matchesExisting(_tracks[i].name, songs)) {
+      if (_matchesExisting(_tracks[i].name, _tracks[i].artists, songs)) {
         _existingIndices.add(i);
       }
     }

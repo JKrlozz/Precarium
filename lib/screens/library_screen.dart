@@ -445,6 +445,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     : song.formattedFileSize;
                 return SongTile(
                   song: song,
+                  isPlaying: context.watch<PlayerProvider>().currentSong?.id == song.id,
                   subtitleExtra: extra,
                   onTap: () {
                     final provider = context.read<PlayerProvider>();

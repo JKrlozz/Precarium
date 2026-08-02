@@ -5,6 +5,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../models/download_task.dart';
 import '../models/song.dart';
 import '../services/database_service.dart';
+import '../services/download_notification_service.dart';
 import '../services/youtube_download_service.dart';
 
 class DownloadProvider extends ChangeNotifier {
@@ -18,6 +19,7 @@ class DownloadProvider extends ChangeNotifier {
   static const int _maxAutoRetries = 3;
 
   final Map<String, int> _retryCounts = {};
+  bool _notificationStarted = false;
 
   List<DownloadTask> get tasks => List.unmodifiable(_tasks);
   List<DownloadTask> get activeTasks =>
@@ -42,7 +44,13 @@ class DownloadProvider extends ChangeNotifier {
       if (index == -1) return;
       _tasks[index] = _tasks[index].copyWith(progress: percent / 100.0);
       notifyListeners();
+      _notifyProgress();
     };
+  }
+
+  void _notifyProgress() {
+    if (!_notificationStarted) return;
+    _updateNotification();
   }
 
   void _onProgressUpdate(DownloadProgress progress) {
@@ -75,8 +83,12 @@ class DownloadProvider extends ChangeNotifier {
       _retryCounts.remove(progress.videoId);
       _saveDownloadedSong(progress, _tasks[index].artist);
       _onDownloadComplete?.call();
+      _notifyProgress();
     } else if (progress.state == DownloadState.failed) {
       _scheduleAutoRetry(progress.videoId);
+      _notifyProgress();
+    } else if (progress.state == DownloadState.downloading) {
+      _notifyProgress();
     }
 
     _updateWakeLock();
@@ -180,6 +192,7 @@ class DownloadProvider extends ChangeNotifier {
   }
 
   void _processQueue() {
+    _ensureNotification();
     while (_downloadQueue.isNotEmpty && _activeCount < _maxConcurrent) {
       final videoId = _downloadQueue.removeAt(0);
       final taskIndex = _tasks.indexWhere((t) => t.videoId == videoId);
@@ -192,17 +205,56 @@ class DownloadProvider extends ChangeNotifier {
       _downloadService.startDownload(videoId, artist: _tasks[taskIndex].artist).whenComplete(() {
         _activeCount--;
         _updateWakeLock();
+        _notifyProgress();
         notifyListeners();
         _processQueue();
       });
     }
   }
 
+  void _ensureNotification() {
+    if (_notificationStarted) return;
+    final hasWork = _activeCount > 0 || _downloadQueue.isNotEmpty;
+    if (!hasWork) return;
+    _notificationStarted = true;
+    DownloadNotificationService.start(_tasks.length);
+  }
+
   void _updateWakeLock() {
-    if (_activeCount > 0 || _downloadQueue.isNotEmpty) {
+    final hasWork = _activeCount > 0 || _downloadQueue.isNotEmpty;
+    if (hasWork) {
       WakelockPlus.enable();
     } else {
       WakelockPlus.disable();
+    }
+  }
+
+  void _updateNotification() {
+    final total = _tasks.length;
+    final completed = _tasks.where((t) => t.status == DownloadStatus.completed).length;
+    final failed = _tasks.where((t) => t.status == DownloadStatus.failed).length;
+    final activeTask = _tasks.firstWhere(
+      (t) => t.status == DownloadStatus.downloading,
+      orElse: () => _tasks.firstWhere(
+        (t) => t.status == DownloadStatus.pending,
+        orElse: () => _tasks.last,
+      ),
+    );
+    final currentTitle = activeTask.title;
+
+    if (_activeCount > 0 || _downloadQueue.isNotEmpty) {
+      DownloadNotificationService.updateProgress(
+        completed: completed,
+        total: total,
+        failed: failed,
+        currentTitle: currentTitle,
+      );
+    } else {
+      _notificationStarted = false;
+      final parts = <String>[];
+      if (completed > 0) parts.add('$completed descarga(s) completada(s)');
+      if (failed > 0) parts.add('$failed fallida(s)');
+      DownloadNotificationService.stop(message: parts.join(' · '));
     }
   }
 

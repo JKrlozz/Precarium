@@ -583,6 +583,7 @@ class _AutoBackupSectionState extends State<_AutoBackupSection> {
         hour: _backup.autoBackupHour,
         minute: _backup.autoBackupMinute,
       );
+      if (mounted) setState(() {});
       return;
     }
     await _showConfigDialog();
@@ -639,7 +640,7 @@ class _AutoBackupSectionState extends State<_AutoBackupSection> {
     );
 
     if (result != true || !mounted) {
-      if (!_backup.autoBackupEnabled) setState(() {});
+      setState(() {});
       return;
     }
 
@@ -650,6 +651,7 @@ class _AutoBackupSectionState extends State<_AutoBackupSection> {
       minute: time.minute,
     );
     if (!mounted || _cancelled) return;
+    setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Respaldo automático configurado'),

@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <!-- Android 13+ -->
@@ -12,6 +13,7 @@
     <!-- Reproducción en segundo plano -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- Wake lock -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Alarmas exactas (Android 12+) -->
@@ -57,6 +59,12 @@
             android:name=".MediaForegroundService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="false" />
+
+        <service
+            android:name="com.shounakmulay.background_service.ForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false"
+            tools:node="merge" />
 
         <meta-data
             android:name="flutterEmbedding"

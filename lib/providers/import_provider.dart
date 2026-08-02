@@ -31,29 +31,63 @@ class ImportProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  static String _normalize(String s) {
-    return s.trim().toLowerCase().replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+  static String _stripMetadata(String s) {
+    return s
+        .replaceAll(RegExp(r'\(official\s*(music\s*)?(video|audio|lyric|lyrics)\)', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\[official\s*(music\s*)?(video|audio|lyric|lyrics)\]', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\(?\d{3,4}p?\)?', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\(hd\)|\(4k\)|\(ultra\s*hd\)|\(audio\)|\(visualizer\)', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
-  bool _matchesExisting(String importName, String importArtist, List<Song> librarySongs) {
+  static String _normalize(String s) {
+    s = s.trim().toLowerCase();
+    s = _stripMetadata(s);
+    s = s.replaceAll('\u2013', '-').replaceAll('\u2014', '-');
+    s = s.replaceAll('\u2018', "'").replaceAll('\u2019', "'");
+    s = s.replaceAll('\u201C', '"').replaceAll('\u201D', '"');
+    s = s.replaceAll('\u00A0', ' ').replaceAll('\u200B', '');
+    s = s.replaceAll(RegExp(r'[<>:"/\\|?*#%&{}\[\]^~!@$+=`]'), '_');
+    s = s.replaceAll(RegExp(r'[\x00-\x1F\x7F]'), '');
+    s = s.replaceAll(RegExp(r'_+'), '_');
+    s = s.trim().replaceAll(RegExp(r'[. ]+$'), '');
+    return s;
+  }
+
+  static List<String> _artistParts(String artist) {
+    var s = artist.toLowerCase().trim();
+    s = s.replaceAll(RegExp(r'\s*(feat\.|featuring|ft\.|f\.)\s*'), ';');
+    s = s.replaceAll(RegExp(r'\s*[,;&+]\s*'), ';');
+    s = s.replaceAll(RegExp(r'\s+(and|y|vs\.?|x)\s+'), ';');
+    return s.split(';').map((x) => _normalize(x)).where((x) => x.isNotEmpty).toList();
+  }
+
+  static bool matchesExisting(String importName, String importArtist, List<Song> librarySongs) {
     final needleName = _normalize(importName);
-    final needleArtist = _normalize(importArtist);
+    final needleArtists = _artistParts(importArtist);
     if (needleName.isEmpty) return false;
 
     return librarySongs.any((s) {
       final libName = _normalize(s.title);
-      final libArtist = _normalize(s.artist);
 
-      if (needleArtist.isNotEmpty && libArtist.isNotEmpty) {
-        if (libName.contains(needleName) || needleName.contains(libName)) {
-          if (libArtist.contains(needleArtist) || needleArtist.contains(libArtist)) {
-            return true;
+      if (needleArtists.isNotEmpty) {
+        final libArtists = _artistParts(s.artist);
+        if (libArtists.isNotEmpty) {
+          if (libName.contains(needleName) || needleName.contains(libName)) {
+            if (needleArtists.any((na) => libArtists.any((la) => la.contains(na) || na.contains(la)))) {
+              return true;
+            }
           }
         }
       }
 
       return libName.contains(needleName) || needleName.contains(libName);
     });
+  }
+
+  bool _matchesExisting(String importName, String importArtist, List<Song> librarySongs) {
+    return matchesExisting(importName, importArtist, librarySongs);
   }
 
   Future<void> startImport({

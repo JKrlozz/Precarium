@@ -9,26 +9,6 @@ class MusicScanService {
     '.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.wma', '.opus', '.webm',
   ];
 
-  Future<List<Song>> scanDownloadedMusic() async {
-    final songs = <Song>[];
-    final dir = await _getMusicDirectory();
-
-    if (!await dir.exists()) return songs;
-
-    try {
-      await for (final entity in dir.list(recursive: true, followLinks: false)) {
-        if (entity is File && _isAudioFile(entity.path)) {
-          try {
-            final song = await _extractMetadata(entity);
-            if (song != null) songs.add(song);
-          } catch (_) {}
-        }
-      }
-    } catch (_) {}
-
-    return songs;
-  }
-
   Future<Directory> _getMusicDirectory() async {
     final appDir = await getApplicationDocumentsDirectory();
     return Directory('${appDir.path}${Platform.pathSeparator}music');
@@ -39,37 +19,111 @@ class MusicScanService {
     return _audioExtensions.any((e) => ext.endsWith(e));
   }
 
-  Future<Song?> _extractMetadata(File file) async {
+  Song? _parseSongFromPath(File file, {Duration? duration}) {
     try {
       final filePath = file.path;
       final fileName = filePath.split(Platform.pathSeparator).last;
-      final nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+      final dot = fileName.lastIndexOf('.');
+      if (dot < 0) return null;
+      var nameWithoutExt = fileName.substring(0, dot);
+      nameWithoutExt = nameWithoutExt
+          .replaceAll('\u2013', '-')
+          .replaceAll('\u2014', '-');
+      nameWithoutExt = nameWithoutExt
+          .replaceAll('\u00A0', ' ')
+          .replaceAll('\u200B', '');
+      nameWithoutExt = nameWithoutExt
+          .replaceAll(RegExp(r'[. ]+$'), '')
+          .trim();
 
       String title = nameWithoutExt;
       String artist = 'Unknown Artist';
 
       final dashIndex = nameWithoutExt.indexOf(' - ');
       if (dashIndex > 0 && dashIndex < nameWithoutExt.length - 3) {
-        artist = nameWithoutExt.substring(0, dashIndex).trim();
-        title = nameWithoutExt.substring(dashIndex + 3).trim();
+        final rawArtist = nameWithoutExt.substring(0, dashIndex).trim();
+        final rawTitle = nameWithoutExt.substring(dashIndex + 3).trim();
+        if (rawArtist.isNotEmpty) {
+          artist = rawArtist;
+          title = rawTitle;
+        }
       }
 
-      final durationMs = await _channel
-          .invokeMethod<int>('getDuration', {'filePath': filePath})
-          .timeout(const Duration(seconds: 5));
-
-      final fileSize = await file.length();
+      if (title.isEmpty) title = artist;
 
       return Song(
         id: filePath.hashCode.toString(),
         title: title,
         artist: artist,
         filePath: filePath,
-        duration: Duration(milliseconds: durationMs ?? 0),
-        fileSize: fileSize,
+        duration: duration ?? Duration.zero,
       );
     } catch (_) {
       return null;
     }
+  }
+
+  Future<int> getFileSize(File file) async {
+    try {
+      return await file.length();
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<Duration> getFileDuration(File file) async {
+    try {
+      final ms = await _channel
+          .invokeMethod<int>('getDuration', {'filePath': file.path})
+          .timeout(const Duration(seconds: 5));
+      return Duration(milliseconds: ms ?? 0);
+    } catch (_) {
+      return Duration.zero;
+    }
+  }
+
+  Future<List<Song>> scanDownloadedMusic() async {
+    final songs = <Song>[];
+    final dir = await _getMusicDirectory();
+    if (!await dir.exists()) return songs;
+
+    try {
+      await for (final entity in dir.list(recursive: true, followLinks: false)) {
+        if (entity is File && _isAudioFile(entity.path)) {
+          final song = _parseSongFromPath(entity);
+          if (song != null) {
+            final dur = await getFileDuration(entity);
+            final size = await getFileSize(entity);
+            songs.add(Song(
+              id: song.id,
+              title: song.title,
+              artist: song.artist,
+              filePath: song.filePath,
+              duration: dur,
+              fileSize: size,
+            ));
+          }
+        }
+      }
+    } catch (_) {}
+
+    return songs;
+  }
+
+  Future<List<Song>> listLocalFiles() async {
+    final songs = <Song>[];
+    final dir = await _getMusicDirectory();
+    if (!await dir.exists()) return songs;
+
+    try {
+      await for (final entity in dir.list(recursive: true, followLinks: false)) {
+        if (entity is File && _isAudioFile(entity.path)) {
+          final song = _parseSongFromPath(entity);
+          if (song != null) songs.add(song);
+        }
+      }
+    } catch (_) {}
+
+    return songs;
   }
 }

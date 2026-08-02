@@ -283,6 +283,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                               : song.formattedFileSize;
                           return SongTile(
                             song: song,
+                            isPlaying: context.watch<PlayerProvider>().currentSong?.id == song.id,
                             subtitleExtra: extra,
                             onTap: () => context.read<PlayerProvider>().playQueue(songs, startIndex: index),
                             onLongPress: () => _showSongContextMenu(context, song),

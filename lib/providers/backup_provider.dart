@@ -389,7 +389,29 @@ class BackupProvider extends ChangeNotifier {
   }
 
   String _sanitizeName(String name) {
-    return name.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
+    name = name.replaceAll('\u2013', '-').replaceAll('\u2014', '-');
+    name = name.replaceAll('\u2018', "'").replaceAll('\u2019', "'");
+    name = name.replaceAll('\u201C', '"').replaceAll('\u201D', '"');
+    name = name.replaceAll('\u00A0', ' ').replaceAll('\u200B', '');
+    name = name.replaceAll(RegExp(r'[<>:"/\\|?*#%&{}\[\]^~!@$+=`]'), '_');
+    name = name.replaceAll(RegExp(r'[\x00-\x1F\x7F]'), '');
+    name = name.replaceAll(RegExp(r'_+'), '_');
+    name = name.trim().replaceAll(RegExp(r'[. ]+$'), '');
+    return name;
+  }
+
+  String _normalizeFuzzy(String s) {
+    s = s
+        .replaceAll(RegExp(r'\(official\s*(music\s*)?(video|audio|lyric|lyrics)\)', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\[official\s*(music\s*)?(video|audio|lyric|lyrics)\]', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\(?\d{3,4}p?\)?', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\(hd\)|\(4k\)|\(ultra\s*hd\)|\(audio\)|\(visualizer\)', caseSensitive: false), '')
+        .toLowerCase()
+        .trim();
+    s = s.replaceAll(RegExp(r'[\s_\-]+'), '');
+    s = s.replaceAll(RegExp(r'[\(\)\[\]\.\,&;]'), '');
+    s = s.replaceAll("'", '');
+    return s;
   }
 
   // ── Drive restore helpers ──
@@ -588,6 +610,17 @@ class BackupProvider extends ChangeNotifier {
             song = songsById[body];
           }
           song ??= songsByOldKey[body];
+
+          if (song == null) {
+            final normBody = _normalizeFuzzy(body);
+            for (final s in dbSongs) {
+              if (_normalizeFuzzy(s.title).contains(normBody) ||
+                  normBody.contains(_normalizeFuzzy(s.title))) {
+                song = s;
+                break;
+              }
+            }
+          }
 
           final ext = _extension(fileName);
           final localName = song != null
