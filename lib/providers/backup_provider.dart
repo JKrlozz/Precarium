@@ -45,6 +45,15 @@ class BackupProvider extends ChangeNotifier {
   double get fullProgress => _fullProgress;
   String get fullStatus => _fullStatus;
 
+  bool _cancelRequested = false;
+
+  void cancelUpload() {
+    _cancelRequested = true;
+    _driveService.cancelUpload();
+    _fullStatus = 'Cancelando...';
+    notifyListeners();
+  }
+
   bool get autoBackupEnabled => _autoBackupEnabled;
   String get autoBackupType => _autoBackupType;
   int get autoBackupHour => _autoBackupHour;
@@ -298,6 +307,8 @@ class BackupProvider extends ChangeNotifier {
     required int primaryColor,
   }) async {
     _isExporting = true;
+    _cancelRequested = false;
+    _driveService.resetUploadClient();
     _fullProgress = 0;
     _fullStatus = 'Iniciando respaldo completo...';
     notifyListeners();
@@ -306,19 +317,20 @@ class BackupProvider extends ChangeNotifier {
       _fullStatus = 'Actualizando respaldo ligero...';
       _fullProgress = 0.05;
       notifyListeners();
+
+      final completoId = await _completoFolder();
+      final songsFolderId = await _driveService.ensureSongsFolder(completoId);
+
+      final existingFilesFuture = _driveService.listSongFiles(songsFolderId);
+
+      _fullProgress = 0.1;
+      notifyListeners();
       await _uploadLigeroJsons(
         songs: songs, playlists: playlists,
         playlistSongs: playlistSongs, themeMode: themeMode, primaryColor: primaryColor,
       );
 
-      _fullStatus = 'Preparando canciones descargadas...';
-      _fullProgress = 0.2;
-      notifyListeners();
-
-      final completoId = await _completoFolder();
-      final songsFolderId = await _driveService.ensureSongsFolder(completoId);
-
-      final existingFiles = await _driveService.listSongFiles(songsFolderId);
+      final existingFiles = await existingFilesFuture;
       final existingKeys = <String>{};
       for (final f in existingFiles) {
         final name = f['name'] as String;
@@ -351,17 +363,27 @@ class BackupProvider extends ChangeNotifier {
       } else {
         int failedCount = 0;
         for (int i = 0; i < toUpload.length; i++) {
+          if (_cancelRequested) {
+            _fullStatus = 'Respaldo cancelado por el usuario';
+            _fullProgress = 1.0;
+            notifyListeners();
+            return;
+          }
           final song = toUpload[i];
-          _fullStatus = 'Subiendo cancion ${i + 1} de ${toUpload.length}: ${song.title}';
-          _fullProgress = 0.2 + (0.8 * (i / toUpload.length));
-          notifyListeners();
-
           final ext = _extension(song.filePath);
           final driveName = '${song.id}.$ext';
-
+          _fullStatus = 'Canción ${i + 1} de ${toUpload.length}: ${song.artist} - ${song.title}';
+          _fullProgress = 0.2 + (0.8 * ((i + 1) / toUpload.length));
+          notifyListeners();
           try {
             await _driveService.uploadSongFile(songsFolderId, song.filePath, driveName);
-          } catch (e) {
+          } catch (_) {
+            if (_cancelRequested) {
+              _fullStatus = 'Respaldo cancelado por el usuario';
+              _fullProgress = 1.0;
+              notifyListeners();
+              return;
+            }
             failedCount++;
           }
         }
@@ -693,6 +715,35 @@ class BackupProvider extends ChangeNotifier {
     final dir = Directory('${appDir.path}${Platform.pathSeparator}music');
     if (!await dir.exists()) await dir.create(recursive: true);
     return dir;
+  }
+
+  Future<List<Map<String, dynamic>>> listBackedUpSongs() async {
+    final completoId = await _completoFolder();
+    final songsFolderId = await _driveService.ensureSongsFolder(completoId);
+    final files = await _driveService.listSongFiles(songsFolderId);
+
+    final db = await DatabaseService.database;
+    final rows = await db.query('songs', columns: ['id', 'title', 'artist']);
+    final songMap = {for (final r in rows) r['id'] as String: r};
+
+    for (final f in files) {
+      final name = f['name'] as String? ?? '';
+      final dot = name.lastIndexOf('.');
+      String songId = '';
+      if (dot >= 0) {
+        final body = name.substring(0, dot);
+        songId = body.contains('_') ? body.split('_').first : body;
+      }
+      final match = songMap[songId];
+      f['displayTitle'] = match != null
+          ? '${match['artist']} - ${match['title']}'
+          : name;
+    }
+    return files;
+  }
+
+  Future<void> deleteBackedUpSong(String fileId) async {
+    await _driveService.deleteFile(fileId);
   }
 
   Future<void> purgeAllBackupData() async {

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/song.dart';
 import '../services/spotify_service.dart';
 import '../services/csv_import_service.dart';
 import '../providers/library_provider.dart';
@@ -84,8 +83,8 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
       if (mounted) {
         setState(() {
           _step = _ImportStep.selecting;
-          _computeExistingIndices();
         });
+        _computeExistingIndices();
       }
     } on RequiresPremiumException {
       _error = _spotify.isLoggedIn
@@ -119,8 +118,8 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
       if (mounted) {
         setState(() {
           _step = _ImportStep.selecting;
-          _computeExistingIndices();
         });
+        _computeExistingIndices();
       }
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
@@ -149,8 +148,8 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
 
   // ── Helpers ──
 
-  void _uncheckExisting() {
-    _computeExistingIndices();
+  Future<void> _uncheckExisting() async {
+    await _computeExistingIndices();
     int count = 0;
     for (final i in _existingIndices) {
       if (_selectedIndices.remove(i)) count++;
@@ -167,18 +166,18 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
     }
   }
 
-  bool _matchesExisting(String importName, String importArtist, List<Song> librarySongs) {
-    return ImportProvider.matchesExisting(importName, importArtist, librarySongs);
-  }
-
-  void _computeExistingIndices() {
+  Future<void> _computeExistingIndices() async {
     _existingIndices = {};
     final songs = context.read<LibraryProvider>().songs.toList();
-    for (int i = 0; i < _tracks.length; i++) {
-      if (_matchesExisting(_tracks[i].name, _tracks[i].artists, songs)) {
-        _existingIndices.add(i);
-      }
-    }
+    if (songs.isEmpty || _tracks.isEmpty) return;
+    final names = _tracks.map((t) => t.name).toList();
+    final artists = _tracks.map((t) => t.artists).toList();
+
+    await Future.delayed(Duration.zero);
+
+    _existingIndices = ImportProvider.batchFindExisting(names, artists, songs);
+
+    if (mounted) setState(() {});
   }
 
   void _resetToInput() {

@@ -121,6 +121,31 @@ class LibraryProvider extends ChangeNotifier {
       for (final local in localFiles) {
         final existing = dbMap[local.filePath];
         if (existing != null) {
+          var dur = existing.duration;
+          var dDate = existing.downloadDate;
+          var fSize = existing.fileSize;
+
+          if (dur == Duration.zero || dDate == null) {
+            dur = dur == Duration.zero
+                ? await _scanService.getFileDuration(File(local.filePath))
+                : dur;
+            dDate ??= DateTime.now();
+            fSize = fSize == 0
+                ? await _scanService.getFileSize(File(local.filePath))
+                : fSize;
+            DatabaseService.upsertSong(Song(
+              id: existing.id,
+              title: existing.title,
+              artist: existing.artist,
+              album: existing.album,
+              albumArtPath: existing.albumArtPath,
+              filePath: local.filePath,
+              duration: dur,
+              downloadDate: dDate,
+              fileSize: fSize,
+            ));
+          }
+
           _songs.add(Song(
             id: existing.id,
             title: existing.title,
@@ -128,9 +153,9 @@ class LibraryProvider extends ChangeNotifier {
             album: existing.album,
             albumArtPath: existing.albumArtPath,
             filePath: local.filePath,
-            duration: existing.duration,
-            downloadDate: existing.downloadDate,
-            fileSize: existing.fileSize,
+            duration: dur,
+            downloadDate: dDate,
+            fileSize: fSize,
           ));
         } else {
           final dur = await _scanService.getFileDuration(File(local.filePath));

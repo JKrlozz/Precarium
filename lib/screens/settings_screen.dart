@@ -65,7 +65,7 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 24),
               _SectionHeader(title: 'Respaldo automático'),
               const SizedBox(height: 8),
-              _AutoBackupSection(backup: backup),
+              const _AutoBackupSection(),
               const SizedBox(height: 24),
               _SectionHeader(title: 'Acerca de'),
               const SizedBox(height: 8),
@@ -275,6 +275,107 @@ class _DriveSectionState extends State<_DriveSection> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Desconectado de Google Drive')),
     );
+  }
+
+  Future<void> _showBackedUpSongs() async {
+    try {
+      final files = await context.read<BackupProvider>().listBackedUpSongs();
+      if (!mounted) return;
+      final sorted = List<Map<String, dynamic>>.from(files)
+        ..sort((a, b) => ((a['name'] as String?) ?? '').compareTo((b['name'] as String?) ?? ''));
+      await _showBackedUpSongsDialog(sorted);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _showBackedUpSongsDialog(List<Map<String, dynamic>> files) async {
+    final theme = Theme.of(context);
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: theme.colorScheme.surface,
+            title: Text('Canciones respaldadas (${files.length})'),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 400,
+              child: files.isEmpty
+                  ? const Center(child: Text('No hay canciones respaldadas'))
+                  : ListView.separated(
+                      itemCount: files.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (_, i) {
+                        final f = files[i];
+                        final name = f['displayTitle'] as String? ?? '';
+                        final size = f['size'] as String?;
+                        return ListTile(
+                          dense: true,
+                          title: Text(name, style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface)),
+                          subtitle: size != null
+                              ? Text(_formatSize(int.tryParse(size) ?? 0),
+                                  style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface.withValues(alpha: 0.5)))
+                              : null,
+                          trailing: IconButton(
+                            icon: Icon(Icons.delete_outline, color: Colors.red.shade300, size: 20),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (c) => AlertDialog(
+                                  backgroundColor: theme.colorScheme.surface,
+                                  title: const Text('¿Eliminar?'),
+                                  content: Text('Eliminar "$name" de Drive?'),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(c, true),
+                                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                      child: const Text('Eliminar'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
+                                try {
+                                  await context.read<BackupProvider>().deleteBackedUpSong(f['id'] as String);
+                                  if (context.mounted) {
+                                    files.removeAt(i);
+                                    setDialogState(() {});
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Eliminado'), backgroundColor: Colors.green),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+                                    );
+                                  }
+                                }
+                              }
+                            },
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar')),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  String _formatSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   Future<void> _onPurge() async {
@@ -491,6 +592,20 @@ class _DriveSectionState extends State<_DriveSection> {
                 const SizedBox(height: 8),
                 Text(_backup.fullStatus,
                     style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => context.read<BackupProvider>().cancelUpload(),
+                    icon: const Icon(Icons.cancel, size: 18),
+                    label: const Text('Cancelar'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
               ] else ...[
                 const Center(child: CircularProgressIndicator()),
               ],
@@ -524,13 +639,23 @@ class _DriveSectionState extends State<_DriveSection> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
+                  onPressed: _showBackedUpSongs,
+                  icon: const Icon(Icons.music_note, size: 18),
+                  label: const Text('Canciones respaldadas'),
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 10)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
                   onPressed: _onPurge,
                   icon: const Icon(Icons.delete_forever, size: 18),
-                  label: const Text('Purgar'),
+                  label: const Text('Purgar todo'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.red,
                     side: const BorderSide(color: Colors.red),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                   ),
                 ),
               ),
@@ -557,43 +682,82 @@ class _DriveSectionState extends State<_DriveSection> {
   }
 }
 
-class _AutoBackupSection extends StatefulWidget {
-  final BackupProvider backup;
-  const _AutoBackupSection({required this.backup});
+class _AutoBackupSection extends StatelessWidget {
+  const _AutoBackupSection();
 
   @override
-  State<_AutoBackupSection> createState() => _AutoBackupSectionState();
-}
-
-class _AutoBackupSectionState extends State<_AutoBackupSection> {
-  bool _cancelled = false;
-  BackupProvider get _backup => widget.backup;
-
-  @override
-  void dispose() {
-    _cancelled = true;
-    super.dispose();
+  Widget build(BuildContext context) {
+    final backup = context.watch<BackupProvider>();
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Respaldo programado',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurface)),
+                    const SizedBox(height: 4),
+                    Text(
+                      backup.autoBackupEnabled
+                          ? '${backup.autoBackupType == 'light' ? 'Ligero' : 'Completo'} — ${backup.autoBackupHour.toString().padLeft(2, '0')}:${backup.autoBackupMinute.toString().padLeft(2, '0')} h'
+                          : 'Programa un respaldo diario automático',
+                      style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: backup.autoBackupEnabled,
+                onChanged: (v) => _toggle(context, v),
+              ),
+            ],
+          ),
+          if (backup.autoBackupEnabled) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: () => _showConfigDialog(context),
+                icon: const Icon(Icons.edit, size: 16),
+                label: const Text('Cambiar configuración'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
-  Future<void> _toggle(bool value) async {
+  Future<void> _toggle(BuildContext context, bool value) async {
+    final backup = context.read<BackupProvider>();
     if (!value) {
-      await _backup.saveAutoBackupSettings(
+      await backup.saveAutoBackupSettings(
         enabled: false,
-        type: _backup.autoBackupType,
-        hour: _backup.autoBackupHour,
-        minute: _backup.autoBackupMinute,
+        type: backup.autoBackupType,
+        hour: backup.autoBackupHour,
+        minute: backup.autoBackupMinute,
       );
-      if (mounted) setState(() {});
       return;
     }
-    await _showConfigDialog();
+    await _showConfigDialog(context);
   }
 
-  Future<void> _showConfigDialog() async {
-    String type = _backup.autoBackupType;
+  Future<void> _showConfigDialog(BuildContext context) async {
+    final backup = context.read<BackupProvider>();
+    String type = backup.autoBackupType;
     TimeOfDay time = TimeOfDay(
-      hour: _backup.autoBackupHour,
-      minute: _backup.autoBackupMinute,
+      hour: backup.autoBackupHour,
+      minute: backup.autoBackupMinute,
     );
 
     final result = await showDialog<bool>(
@@ -639,75 +803,19 @@ class _AutoBackupSectionState extends State<_AutoBackupSection> {
       ),
     );
 
-    if (result != true || !mounted) {
-      setState(() {});
-      return;
-    }
+    if (result != true) return;
 
-    await _backup.saveAutoBackupSettings(
+    await backup.saveAutoBackupSettings(
       enabled: true,
       type: type,
       hour: time.hour,
       minute: time.minute,
     );
-    if (!mounted || _cancelled) return;
-    setState(() {});
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Respaldo automático configurado'),
         backgroundColor: Colors.green,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Respaldo programado',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurface)),
-                    const SizedBox(height: 4),
-                    Text(
-                      _backup.autoBackupEnabled
-                          ? '${_backup.autoBackupType == 'light' ? 'Ligero' : 'Completo'} — ${_backup.autoBackupHour.toString().padLeft(2, '0')}:${_backup.autoBackupMinute.toString().padLeft(2, '0')} h'
-                          : 'Programa un respaldo diario automático',
-                      style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
-                    ),
-                  ],
-                ),
-              ),
-              Switch(
-                value: _backup.autoBackupEnabled,
-                onChanged: _toggle,
-              ),
-            ],
-          ),
-          if (_backup.autoBackupEnabled) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton.icon(
-                onPressed: _showConfigDialog,
-                icon: const Icon(Icons.edit, size: 16),
-                label: const Text('Cambiar configuración'),
-              ),
-            ),
-          ],
-        ],
       ),
     );
   }

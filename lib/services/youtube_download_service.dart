@@ -90,9 +90,9 @@ class YouTubeDownloadService {
     var progress = DownloadProgress(videoId: videoId, title: '', artist: artist);
     _emit(progress);
 
+    String? filePath;
     for (int attempt = 0; attempt <= _maxRetries; attempt++) {
       if (_isCancelled(videoId)) return _cancelledResult(videoId);
-
       try {
         final jsonStr = await _channel
             .invokeMethod<String>('extractAudio', {'videoId': videoId})
@@ -113,7 +113,7 @@ class YouTubeDownloadService {
         _emit(progress);
 
         final dir = await _getDownloadDirectory();
-        final filePath = '${dir.path}${Platform.pathSeparator}$fileName';
+        filePath = '${dir.path}${Platform.pathSeparator}$fileName';
 
         if (_isCancelled(videoId)) return _cancelledResult(videoId);
 
@@ -126,7 +126,7 @@ class YouTubeDownloadService {
             .timeout(const Duration(minutes: 15));
 
         if (_isCancelled(videoId)) {
-          if (await File(filePath).exists()) await File(filePath).delete();
+          if (await File(filePath!).exists()) await File(filePath!).delete();
           return _cancelledResult(videoId);
         }
 
@@ -139,6 +139,11 @@ class YouTubeDownloadService {
         return result;
       } catch (e) {
         if (_isCancelled(videoId)) return _cancelledResult(videoId);
+
+        if (filePath != null) {
+          final f = File(filePath!);
+          if (await f.exists()) await f.delete();
+        }
 
         if (_isNetworkError(e) && attempt < _maxRetries) {
           await Future.delayed(Duration(seconds: 1 << attempt));
@@ -154,6 +159,10 @@ class YouTubeDownloadService {
       }
     }
 
+    if (filePath != null) {
+      final f = File(filePath!);
+      if (await f.exists()) await f.delete();
+    }
     return progress.copyWith(state: DownloadState.failed, error: 'Max retries exceeded');
   }
 

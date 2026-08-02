@@ -173,6 +173,15 @@ class NativeExecutor(private val context: Context) {
                         map["percent"] = pct
                         mainHandler.post { progressSink?.success(map) }
                     }
+                } else {
+                    val pct = ((totalRead.toDouble() / 1_000_000.0).toInt()).coerceAtMost(99)
+                    if (pct != lastReportedPct) {
+                        lastReportedPct = pct
+                        val map = HashMap<String, Any>()
+                        if (videoId != null) map["videoId"] = videoId
+                        map["percent"] = pct
+                        mainHandler.post { progressSink?.success(map) }
+                    }
                 }
             }
             val finalMap = HashMap<String, Any>()

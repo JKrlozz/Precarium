@@ -31,18 +31,35 @@ class ImportProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  static final _accentMap = <String, String>{
+    'á': 'a', 'à': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a', 'ā': 'a',
+    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e', 'ē': 'e', 'ė': 'e', 'ę': 'e',
+    'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i', 'ī': 'i',
+    'ó': 'o', 'ò': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o', 'ø': 'o', 'ō': 'o',
+    'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u', 'ū': 'u',
+    'ñ': 'n', 'ç': 'c', 'ć': 'c', 'č': 'c',
+    'ý': 'y', 'ÿ': 'y', 'ğ': 'g', 'š': 's', 'ş': 's', 'ž': 'z',
+    'æ': 'ae', 'œ': 'oe',
+  };
+
+  static String _removeAccents(String s) {
+    return s.split('').map((c) => _accentMap[c] ?? c).join();
+  }
+
   static String _stripMetadata(String s) {
-    return s
-        .replaceAll(RegExp(r'\(official\s*(music\s*)?(video|audio|lyric|lyrics)\)', caseSensitive: false), ' ')
-        .replaceAll(RegExp(r'\[official\s*(music\s*)?(video|audio|lyric|lyrics)\]', caseSensitive: false), ' ')
-        .replaceAll(RegExp(r'\(?\d{3,4}p?\)?', caseSensitive: false), ' ')
-        .replaceAll(RegExp(r'\(hd\)|\(4k\)|\(ultra\s*hd\)|\(audio\)|\(visualizer\)', caseSensitive: false), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
+    final result = s
+        .replaceAll(RegExp(r'\(official\s*(music\s*)?(video|audio|lyric|lyrics)\)', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\[official\s*(music\s*)?(video|audio|lyric|lyrics)\]', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\(720p\)|\(1080p\)|\(4k\)|\(hd\)|\(ultra\s*hd\)|\(audio\)|\(visualizer\)', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\s*\([^)]*\)\s*$'), '')
+        .replaceAll(RegExp(r'\s*\[[^\]]*\]\s*$'), '')
         .trim();
+    return result;
   }
 
   static String _normalize(String s) {
     s = s.trim().toLowerCase();
+    s = _removeAccents(s);
     s = _stripMetadata(s);
     s = s.replaceAll('\u2013', '-').replaceAll('\u2014', '-');
     s = s.replaceAll('\u2018', "'").replaceAll('\u2019', "'");
@@ -56,6 +73,7 @@ class ImportProvider extends ChangeNotifier {
   }
 
   static List<String> _artistParts(String artist) {
+    if (artist.isEmpty) return [];
     var s = artist.toLowerCase().trim();
     s = s.replaceAll(RegExp(r'\s*(feat\.|featuring|ft\.|f\.)\s*'), ';');
     s = s.replaceAll(RegExp(r'\s*[,;&+]\s*'), ';');
@@ -63,27 +81,188 @@ class ImportProvider extends ChangeNotifier {
     return s.split(';').map((x) => _normalize(x)).where((x) => x.isNotEmpty).toList();
   }
 
+  static final Set<String> _stopWords = {
+    'the', 'and', 'for', 'you', 'are', 'not', 'but', 'all', 'can',
+    'had', 'her', 'was', 'one', 'our', 'out', 'its', 'his', 'has',
+    'she', 'get', 'got', 'did', 'say', 'let', 'see', 'way', 'may',
+    'too', 'now', 'new', 'how', 'why', 'any', 'man', 'old', 'own',
+  };
+
+  static List<String> _words(String s) {
+    return _removeAccents(s).toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .split(RegExp(r'\s+'))
+        .where((w) => w.length > 2 && !_stopWords.contains(w))
+        .toList();
+  }
+
+  static bool _artistsMatch(List<String> a, List<String> b) {
+    return a.any((na) => b.any((lb) =>
+        lb.contains(na) || na.contains(lb)));
+  }
+
+  static bool _titlesMatchRelaxed(String rawA, String rawB) {
+    final a = _normalize(rawA);
+    final b = _normalize(rawB);
+    if (a.isEmpty || b.isEmpty) return false;
+    if (a == b) return true;
+
+    final wa = _words(rawA);
+    final wb = _words(rawB);
+    if (wa.isEmpty || wb.isEmpty) return false;
+
+    final shorter = wa.length <= wb.length ? wa : wb;
+    final longer = wa.length <= wb.length ? wb : wa;
+
+    if (shorter.length < 2) {
+      return shorter.length == 1 && shorter[0].length >= 5 && longer.contains(shorter[0]);
+    }
+
+    return shorter.every((w) => longer.contains(w));
+  }
+
+  static bool _titlesMatchStrict(String rawA, String rawB) {
+    final a = _normalize(rawA);
+    final b = _normalize(rawB);
+    if (a.isEmpty || b.isEmpty) return false;
+    if (a == b) return true;
+
+    if (b.contains(a) && a.length >= b.length * 0.8) return true;
+    if (a.contains(b) && b.length >= a.length * 0.8) return true;
+
+    final wa = _words(rawA);
+    final wb = _words(rawB);
+    if (wa.length < 2 || wb.length < 2) return false;
+
+    final shorter = wa.length <= wb.length ? wa : wb;
+    final longer = wa.length <= wb.length ? wb : wa;
+
+    final common = shorter.where((w) => longer.contains(w)).toList();
+    if (common.length < 2) return false;
+    if (!common.any((w) => w.length >= 4)) return false;
+
+    return common.length >= shorter.length * 0.65;
+  }
+
   static bool matchesExisting(String importName, String importArtist, List<Song> librarySongs) {
-    final needleName = _normalize(importName);
-    final needleArtists = _artistParts(importArtist);
-    if (needleName.isEmpty) return false;
+    try {
+      final needleArtists = _artistParts(importArtist);
+      final needleName = _normalize(importName);
+      if (needleName.isEmpty) return false;
 
-    return librarySongs.any((s) {
-      final libName = _normalize(s.title);
+      return librarySongs.any((s) {
+        try {
+          if (s.title.isEmpty) return false;
+          final ln = _normalize(s.title);
+          if (ln.isEmpty) return false;
+          if (ln == needleName) return true;
 
-      if (needleArtists.isNotEmpty) {
-        final libArtists = _artistParts(s.artist);
-        if (libArtists.isNotEmpty) {
-          if (libName.contains(needleName) || needleName.contains(libName)) {
-            if (needleArtists.any((na) => libArtists.any((la) => la.contains(na) || na.contains(la)))) {
-              return true;
-            }
+          final libArtists = s.artist.isNotEmpty
+              ? _artistParts(s.artist)
+              : <String>[];
+          final hasBothArtists =
+              needleArtists.isNotEmpty && libArtists.isNotEmpty;
+
+          if (hasBothArtists && _artistsMatch(needleArtists, libArtists)) {
+            return _titlesMatchRelaxed(importName, s.title);
           }
-        }
-      }
 
-      return libName.contains(needleName) || needleName.contains(libName);
+          return _titlesMatchStrict(importName, s.title);
+        } catch (_) {
+          return false;
+        }
+      });
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Set<int> batchFindExisting(List<String> importNames, List<String> importArtists, List<Song> librarySongs) {
+    if (importNames.isEmpty || librarySongs.isEmpty) return {};
+
+    final libNorms = librarySongs.map((s) {
+      try {
+        final t = _normalize(s.title);
+        return (
+          title: t,
+          rawTitle: s.title,
+          artists: s.artist.isNotEmpty ? _artistParts(s.artist) : <String>[],
+          words: t.isNotEmpty ? _words(s.title) : <String>[],
+        );
+      } catch (_) {
+        return (title: '', rawTitle: s.title, artists: <String>[], words: <String>[]);
+      }
+    }).toList();
+
+    final importNorms = List.generate(importNames.length, (i) {
+      try {
+        final t = _normalize(importNames[i]);
+        return (
+          name: t,
+          rawName: importNames[i],
+          artists: _artistParts(importArtists[i]),
+          words: t.isNotEmpty ? _words(importNames[i]) : <String>[],
+        );
+      } catch (_) {
+        return (name: '', rawName: importNames[i], artists: <String>[], words: <String>[]);
+      }
     });
+
+    final existing = <int>{};
+    for (int i = 0; i < importNorms.length; i++) {
+      final imp = importNorms[i];
+      if (imp.name.isEmpty) continue;
+
+      for (final lib in libNorms) {
+        if (lib.title.isEmpty) continue;
+
+        if (lib.title == imp.name) { existing.add(i); break; }
+
+        final hasBothArtists = imp.artists.isNotEmpty && lib.artists.isNotEmpty;
+        bool match = false;
+
+        if (hasBothArtists && _artistsMatch(imp.artists, lib.artists)) {
+          match = _relaxedPre(imp.name, imp.words, imp.rawName, lib.title, lib.words, lib.rawTitle);
+        } else {
+          match = _strictPre(imp.name, imp.words, imp.rawName, lib.title, lib.words, lib.rawTitle);
+        }
+
+        if (match) { existing.add(i); break; }
+      }
+    }
+    return existing;
+  }
+
+  static bool _relaxedPre(String normA, List<String> wordsA, String rawA,
+      String normB, List<String> wordsB, String rawB) {
+    if (normA == normB) return true;
+
+    if (wordsA.length < 2) {
+      return wordsA.length == 1 && wordsA[0].length >= 5 && wordsB.contains(wordsA[0]);
+    }
+
+    final shorter = wordsA.length <= wordsB.length ? wordsA : wordsB;
+    final longer = wordsA.length <= wordsB.length ? wordsB : wordsA;
+    return shorter.every((w) => longer.contains(w));
+  }
+
+  static bool _strictPre(String normA, List<String> wordsA, String rawA,
+      String normB, List<String> wordsB, String rawB) {
+    if (normA == normB) return true;
+
+    if (normB.contains(normA) && normA.length >= normB.length * 0.8) return true;
+    if (normA.contains(normB) && normB.length >= normA.length * 0.8) return true;
+
+    if (wordsA.length < 2 || wordsB.length < 2) return false;
+
+    final shorter = wordsA.length <= wordsB.length ? wordsA : wordsB;
+    final longer = wordsA.length <= wordsB.length ? wordsB : wordsA;
+
+    final common = shorter.where((w) => longer.contains(w)).toList();
+    if (common.length < 2) return false;
+    if (!common.any((w) => w.length >= 4)) return false;
+
+    return common.length >= shorter.length * 0.65;
   }
 
   bool _matchesExisting(String importName, String importArtist, List<Song> librarySongs) {
@@ -125,7 +304,7 @@ class ImportProvider extends ChangeNotifier {
           final first = searchResults.first;
           downloadProvider.addDownload(
             first.id,
-            first.title,
+            names[i],
             artist: artists[i],
             thumbnailUrl: first.thumbnailUrl,
           );

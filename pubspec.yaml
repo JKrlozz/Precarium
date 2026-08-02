@@ -50,8 +50,6 @@ dependencies:
   google_sign_in: ">=6.1.0 <7.0.0"
   android_alarm_manager_plus: ^5.1.0
   wakelock_plus: ^1.2.10
-  flutter_background_service: ^5.0.5
-  flutter_local_notifications: ^18.0.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
