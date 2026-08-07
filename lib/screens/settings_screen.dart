@@ -69,7 +69,7 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 24),
               _SectionHeader(title: 'Acerca de'),
               const SizedBox(height: 8),
-              _InfoTile(label: 'Versión', value: '1.0.0'),
+              _InfoTile(label: 'Versión', value: '1.0.4'),
             ],
           );
         },
@@ -294,74 +294,104 @@ class _DriveSectionState extends State<_DriveSection> {
 
   Future<void> _showBackedUpSongsDialog(List<Map<String, dynamic>> files) async {
     final theme = Theme.of(context);
+    String query = '';
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
+          List<Map<String, dynamic>> filtered(List<Map<String, dynamic>> all) {
+            if (query.trim().isEmpty) return all;
+            final q = query.toLowerCase();
+            return all.where((f) {
+              final name = ((f['displayTitle'] as String?) ?? '').toLowerCase();
+              return name.contains(q);
+            }).toList();
+          }
+
           return AlertDialog(
             backgroundColor: theme.colorScheme.surface,
             title: Text('Canciones respaldadas (${files.length})'),
             content: SizedBox(
               width: double.maxFinite,
               height: 400,
-              child: files.isEmpty
-                  ? const Center(child: Text('No hay canciones respaldadas'))
-                  : ListView.separated(
-                      itemCount: files.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (_, i) {
-                        final f = files[i];
-                        final name = f['displayTitle'] as String? ?? '';
-                        final size = f['size'] as String?;
-                        return ListTile(
-                          dense: true,
-                          title: Text(name, style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface)),
-                          subtitle: size != null
-                              ? Text(_formatSize(int.tryParse(size) ?? 0),
-                                  style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface.withValues(alpha: 0.5)))
-                              : null,
-                          trailing: IconButton(
-                            icon: Icon(Icons.delete_outline, color: Colors.red.shade300, size: 20),
-                            onPressed: () async {
-                              final confirm = await showDialog<bool>(
-                                context: context,
-                                builder: (c) => AlertDialog(
-                                  backgroundColor: theme.colorScheme.surface,
-                                  title: const Text('¿Eliminar?'),
-                                  content: Text('Eliminar "$name" de Drive?'),
-                                  actions: [
-                                    TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(c, true),
-                                      style: TextButton.styleFrom(foregroundColor: Colors.red),
-                                      child: const Text('Eliminar'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (confirm == true) {
-                                try {
-                                  await context.read<BackupProvider>().deleteBackedUpSong(f['id'] as String);
-                                  if (context.mounted) {
-                                    files.removeAt(i);
-                                    setDialogState(() {});
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Eliminado'), backgroundColor: Colors.green),
-                                    );
-                                  }
-                                } catch (e) {
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
-                                    );
-                                  }
-                                }
-                              }
-                            },
-                          ),
-                        );
-                      },
+              child: Column(
+                children: [
+                  TextField(
+                    style: TextStyle(color: theme.colorScheme.onSurface),
+                    decoration: InputDecoration(
+                      hintText: 'Buscar canción por título o artista...',
+                      hintStyle: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
+                      prefixIcon: Icon(Icons.search, size: 20, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
+                      isDense: true,
+                      border: const OutlineInputBorder(),
                     ),
+                    onChanged: (v) => setDialogState(() => query = v),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: files.isEmpty
+                        ? const Center(child: Text('No hay canciones respaldadas'))
+                        : filtered(files).isEmpty
+                            ? const Center(child: Text('Sin resultados'))
+                            : ListView.separated(
+                                itemCount: filtered(files).length,
+                                separatorBuilder: (_, _) => const Divider(height: 1),
+                                itemBuilder: (_, i) {
+                                  final f = filtered(files)[i];
+                                  final name = f['displayTitle'] as String? ?? '';
+                                  final size = f['size'] as String?;
+                                  return ListTile(
+                                    dense: true,
+                                    title: Text(name, style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface)),
+                                    subtitle: size != null
+                                        ? Text(_formatSize(int.tryParse(size) ?? 0),
+                                            style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurface.withValues(alpha: 0.5)))
+                                        : null,
+                                    trailing: IconButton(
+                                      icon: Icon(Icons.delete_outline, color: Colors.red.shade300, size: 20),
+                                      onPressed: () async {
+                                        final confirm = await showDialog<bool>(
+                                          context: context,
+                                          builder: (c) => AlertDialog(
+                                            backgroundColor: theme.colorScheme.surface,
+                                            title: const Text('¿Eliminar?'),
+                                            content: Text('Eliminar "$name" de Drive?'),
+                                            actions: [
+                                              TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(c, true),
+                                                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                                child: const Text('Eliminar'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (confirm == true) {
+                                          try {
+                                            await context.read<BackupProvider>().deleteBackedUpSong(f['id'] as String);
+                                            if (context.mounted) {
+                                              files.remove(f);
+                                              setDialogState(() {});
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text('Eliminado'), backgroundColor: Colors.green),
+                                              );
+                                            }
+                                          } catch (e) {
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+                                              );
+                                            }
+                                          }
+                                        }
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
+                  ),
+                ],
+              ),
             ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar')),
