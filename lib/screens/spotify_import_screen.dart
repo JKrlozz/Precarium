@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/spotify_service.dart';
 import '../services/csv_import_service.dart';
 import '../providers/library_provider.dart';
 import '../providers/download_provider.dart';
@@ -9,7 +8,6 @@ import '../providers/navigation_provider.dart';
 import '../theme/app_theme.dart';
 
 enum _ImportStep { input, selecting, downloading, done }
-enum _InputMode { url, file }
 
 class SpotifyImportScreen extends StatefulWidget {
   const SpotifyImportScreen({super.key});
@@ -19,82 +17,24 @@ class SpotifyImportScreen extends StatefulWidget {
 }
 
 class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
-  final SpotifyService _spotify = SpotifyService();
   final CsvImportService _csvImport = CsvImportService();
-  final _playlistUrlController = TextEditingController();
+  final _tracksScrollController = ScrollController();
 
   _ImportStep _step = _ImportStep.input;
-  _InputMode _inputMode = _InputMode.url;
 
-  // Track data from either source
   List<_ImportTrack> _tracks = [];
   final Set<int> _selectedIndices = {};
   String? _sourceName;
 
   bool _isLoading = false;
-  bool _loginLoading = false;
   String? _error;
 
   Set<int> _existingIndices = {};
-  final _tracksScrollController = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    _spotify.loadTokens();
-  }
 
   @override
   void dispose() {
-    _playlistUrlController.dispose();
     _tracksScrollController.dispose();
     super.dispose();
-  }
-
-  Future<void> _login() async {
-    setState(() => _loginLoading = true);
-    try {
-      await _spotify.login();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _loginLoading = false);
-    }
-  }
-
-  Future<void> _fetchFromUrl() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-    try {
-      final playlist = await _spotify.getPlaylist(_playlistUrlController.text.trim());
-      _tracks = playlist.tracks.map((t) => _ImportTrack(
-        name: t.title,
-        artists: t.artistString,
-        searchQuery: t.searchQuery,
-      )).toList();
-      _sourceName = playlist.name;
-      _selectedIndices.addAll(List.generate(_tracks.length, (i) => i));
-      if (mounted) {
-        setState(() {
-          _step = _ImportStep.selecting;
-        });
-        _computeExistingIndices();
-      }
-    } on RequiresPremiumException {
-      _error = _spotify.isLoggedIn
-          ? 'Esta playlist requiere una cuenta Spotify Premium.'
-          : 'Esta playlist requiere cuenta Premium. Inicia sesión con una cuenta Premium para acceder.';
-    } catch (e) {
-      _error = e.toString().replaceFirst('Exception: ', '');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
   }
 
   Future<void> _pickCsvFile() async {
@@ -210,31 +150,6 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: _step == _ImportStep.selecting ? _resetToInput : () => Navigator.pop(context),
         ),
-        actions: [
-          if (_step == _ImportStep.input && !_spotify.isLoggedIn)
-            TextButton.icon(
-              onPressed: _loginLoading ? null : _login,
-              icon: _loginLoading
-                  ? const SizedBox(
-                      width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.login, size: 18),
-              label: const Text('Iniciar sesión'),
-            )
-          else if (_step == _ImportStep.input && _spotify.isLoggedIn)
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Cerrar sesión',
-              onPressed: () {
-                _spotify.clearTokens();
-                setState(() {});
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Sesión de Spotify cerrada')),
-                );
-              },
-            ),
-        ],
       ),
       body: _buildBody(theme),
     );
@@ -268,30 +183,10 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Pega un enlace de Spotify o sube un archivo CSV exportado desde Exportify, Soundiiz, etc.',
+            'Sube un archivo CSV exportado desde Exportify, Soundiiz, etc.',
             style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
           ),
           const SizedBox(height: 24),
-
-          // Mode selector
-          SizedBox(
-            width: double.infinity,
-            child: SegmentedButton<_InputMode>(
-              segments: const [
-                ButtonSegment(value: _InputMode.url, label: Text('Enlace'), icon: Icon(Icons.link)),
-                ButtonSegment(value: _InputMode.file, label: Text('Archivo'), icon: Icon(Icons.upload_file)),
-              ],
-              selected: {_inputMode},
-              onSelectionChanged: (v) => setState(() {
-                _inputMode = v.first;
-                _error = null;
-              }),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          if (_inputMode == _InputMode.url) _buildUrlInput(theme),
-          if (_inputMode == _InputMode.file) _buildFileInput(theme),
 
           if (_error != null) ...[
             const SizedBox(height: 16),
@@ -313,63 +208,10 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
               ),
             ),
           ],
+          const SizedBox(height: 24),
+          _buildFileInput(theme),
         ],
       ),
-    );
-  }
-
-  Widget _buildUrlInput(ThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (!_spotify.isLoggedIn)
-          Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, size: 18, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Playlists públicas funcionan sin iniciar sesión. Para playlists privadas inicia sesión arriba.',
-                    style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        TextField(
-          controller: _playlistUrlController,
-          decoration: const InputDecoration(
-            hintText: 'https://open.spotify.com/playlist/...',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.link),
-          ),
-          style: TextStyle(color: theme.colorScheme.onSurface),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _isLoading ? null : _fetchFromUrl,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-            child: _isLoading
-                ? const SizedBox(
-                    width: 20, height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                  )
-                : const Text('Obtener canciones', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-          ),
-        ),
-      ],
     );
   }
 
@@ -474,51 +316,51 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
             thumbVisibility: true,
             interactive: true,
             child: ListView.builder(
-            controller: _tracksScrollController,
-            itemCount: _tracks.length,
-            itemBuilder: (context, index) {
-              final track = _tracks[index];
-              final selected = _selectedIndices.contains(index);
-              return CheckboxListTile(
-                value: selected,
-                onChanged: (v) => setState(() {
-                  if (v == true) {
-                    _selectedIndices.add(index);
-                  } else {
-                    _selectedIndices.remove(index);
-                  }
-                }),
-                title: Text(track.name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurface)),
-                subtitle: Text(
-                    _existingIndices.contains(index)
-                        ? '${track.artists.isNotEmpty ? track.artists : 'Sin artista'} · ya descargada'
-                        : (track.artists.isNotEmpty ? track.artists : 'Sin artista'),
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
+              controller: _tracksScrollController,
+              itemCount: _tracks.length,
+              itemBuilder: (context, index) {
+                final track = _tracks[index];
+                final selected = _selectedIndices.contains(index);
+                return CheckboxListTile(
+                  value: selected,
+                  onChanged: (v) => setState(() {
+                    if (v == true) {
+                      _selectedIndices.add(index);
+                    } else {
+                      _selectedIndices.remove(index);
+                    }
+                  }),
+                  title: Text(track.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurface)),
+                  subtitle: Text(
+                      _existingIndices.contains(index)
+                          ? '${track.artists.isNotEmpty ? track.artists : 'Sin artista'} · ya descargada'
+                          : (track.artists.isNotEmpty ? track.artists : 'Sin artista'),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _existingIndices.contains(index)
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      )),
+                  secondary: Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(
+                      color: _existingIndices.contains(index)
+                          ? theme.colorScheme.primary.withValues(alpha: 0.15)
+                          : theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Icon(
+                      _existingIndices.contains(index) ? Icons.check_circle : Icons.music_note,
                       color: _existingIndices.contains(index)
                           ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                    )),
-                secondary: Container(
-                  width: 40, height: 40,
-                  decoration: BoxDecoration(
-                    color: _existingIndices.contains(index)
-                        ? theme.colorScheme.primary.withValues(alpha: 0.15)
-                        : theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(4),
+                          : AppTheme.textSecondary,
+                    ),
                   ),
-                  child: Icon(
-                    _existingIndices.contains(index) ? Icons.check_circle : Icons.music_note,
-                    color: _existingIndices.contains(index)
-                        ? theme.colorScheme.primary
-                        : AppTheme.textSecondary,
-                  ),
-                ),
-              );
-            },
-          ),
+                );
+              },
+            ),
           ),
         ),
         SafeArea(
@@ -543,9 +385,6 @@ class _SpotifyImportScreenState extends State<SpotifyImportScreen> {
       ],
     );
   }
-
-  // ── Download progress ──
-
 }
 
 class _ImportTrack {

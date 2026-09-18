@@ -52,7 +52,7 @@ class SettingsScreen extends StatelessWidget {
               _SettingsButton(
                 icon: Icons.queue_music,
                 label: 'Importar lista de Spotify',
-                subtitle: 'Busca y descarga canciones desde una playlist',
+                subtitle: 'Sube un archivo CSV exportado desde Exportify, Soundiiz, etc.',
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const SpotifyImportScreen()),
