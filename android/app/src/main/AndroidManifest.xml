@@ -50,13 +50,17 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="com.googleusercontent.apps.706314173316-52d1c8361v60hmkkvdip9ntu11rop2oj" />
+                <data android:scheme="com.googleusercontent.apps.706314173316-1bvqrjo8dd7b2c1tb7t2fnfeesa27apg" />
             </intent-filter>
         </activity>
 
         <service
             android:name=".MediaForegroundService"
             android:foregroundServiceType="mediaPlayback"
+            android:exported="false" />
+        <service
+            android:name=".DownloadForegroundService"
+            android:foregroundServiceType="dataSync"
             android:exported="false" />
 
         <meta-data

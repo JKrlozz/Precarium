@@ -1,13 +1,14 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-const String _clientId = 'c136a495825845b2b2cc2ed6880d80ff';
-const String _clientSecret = '5e0f0021597d498da4f11132d7a7c51d';
-const String _redirectUri = 'precarium://callback';
+String get _clientId => dotenv.env['SPOTIFY_CLIENT_ID']!;
+String get _clientSecret => dotenv.env['SPOTIFY_CLIENT_SECRET']!;
+String get _redirectUri => dotenv.env['SPOTIFY_REDIRECT_URI']!;
 const String _authUrl = 'https://accounts.spotify.com/authorize';
 const String _tokenUrl = 'https://accounts.spotify.com/api/token';
 const String _apiBase = 'https://api.spotify.com/v1';

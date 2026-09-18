@@ -1,21 +1,26 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 
 class DriveBackupService {
   static const String _driveApi = 'https://www.googleapis.com/drive/v3';
   static const String _uploadApi = 'https://www.googleapis.com/upload/drive/v3';
-  static const String _scope = 'https://www.googleapis.com/auth/drive.file';
   static const String _backupFolder = 'Precarium Respaldos';
   static const String _songsFolder = 'Canciones Respaldo';
   static const _timeout = Duration(seconds: 60);
 
   final http.Client _client = http.Client();
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: [_scope],
-  );
+  late final GoogleSignIn _googleSignIn;
+
+  DriveBackupService() {
+    _googleSignIn = GoogleSignIn(
+      scopes: [dotenv.env['GOOGLE_DRIVE_SCOPE']!],
+      serverClientId: dotenv.env['GOOGLE_WEB_CLIENT_ID']!,
+    );
+  }
 
   void dispose() {
     _client.close();

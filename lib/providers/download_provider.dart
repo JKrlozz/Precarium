@@ -5,6 +5,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../models/download_task.dart';
 import '../models/song.dart';
 import '../services/database_service.dart';
+import '../services/download_notification_service.dart';
 import '../services/youtube_download_service.dart';
 
 class DownloadProvider extends ChangeNotifier {
@@ -53,14 +54,19 @@ class DownloadProvider extends ChangeNotifier {
     switch (progress.state) {
       case DownloadState.downloading:
         status = DownloadStatus.downloading;
+        break;
       case DownloadState.completed:
         status = DownloadStatus.completed;
+        break;
       case DownloadState.cancelled:
         status = DownloadStatus.cancelled;
+        break;
       case DownloadState.failed:
         status = DownloadStatus.failed;
+        break;
       case DownloadState.pending:
         status = DownloadStatus.pending;
+        break;
     }
 
     final currentProgress = _tasks[index].progress;
@@ -76,6 +82,16 @@ class DownloadProvider extends ChangeNotifier {
       errorMessage: progress.error,
     );
     notifyListeners();
+
+    final downloading = _tasks.where((t) => t.status == DownloadStatus.downloading).length;
+    final pending = _tasks.where((t) => t.status == DownloadStatus.pending).length;
+    final total = _tasks.length;
+    final completed = _tasks.where((t) => t.status == DownloadStatus.completed).length;
+    if (downloading > 0 || pending > 0) {
+      DownloadNotificationService.update(completed, total);
+    } else if (total > 0 && completed + _tasks.where((t) => t.status == DownloadStatus.failed).length == total) {
+      DownloadNotificationService.hide();
+    }
 
     if (progress.state == DownloadState.completed) {
       _retryCounts.remove(progress.videoId);
@@ -183,6 +199,7 @@ class DownloadProvider extends ChangeNotifier {
     for (final task in pending) {
       cancelTask(task.id);
     }
+    DownloadNotificationService.hide();
   }
 
   void _processQueue() {
@@ -195,6 +212,7 @@ class DownloadProvider extends ChangeNotifier {
       _activeCount++;
       _updateWakeLock();
       notifyListeners();
+      DownloadNotificationService.show(_tasks.length);
       _downloadService.startDownload(videoId, artist: _tasks[taskIndex].artist).whenComplete(() {
         if (_activeCount > 0) _activeCount--;
         _updateWakeLock();

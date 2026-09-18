@@ -737,12 +737,14 @@ class _AutoBackupSection extends StatelessWidget {
                     Text('Respaldo programado',
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurface)),
                     const SizedBox(height: 4),
-                    Text(
-                      backup.autoBackupEnabled
-                          ? '${backup.autoBackupType == 'light' ? 'Ligero' : 'Completo'} — ${backup.autoBackupHour.toString().padLeft(2, '0')}:${backup.autoBackupMinute.toString().padLeft(2, '0')} h'
-                          : 'Programa un respaldo diario automático',
-                      style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
-                    ),
+Text(
+                       backup.autoBackupEnabled
+                           ? '${backup.autoBackupType == 'light' ? 'Ligero' : 'Completo'} — ${backup.autoBackupHour.toString().padLeft(2, '0')}:${backup.autoBackupMinute.toString().padLeft(2, '0')} h'
+                           : 'Programa un respaldo diario automático',
+                       style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
+                       overflow: TextOverflow.ellipsis,
+                       softWrap: false,
+                     ),
                   ],
                 ),
               ),
@@ -800,15 +802,19 @@ class _AutoBackupSection extends StatelessWidget {
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                DropdownButtonFormField<String>(
-                  value: type,
-                  decoration: const InputDecoration(labelText: 'Tipo de respaldo'),
-                  items: const [
-                    DropdownMenuItem(value: 'light', child: Text('Ligero (config + canciones + listas)')),
-                    DropdownMenuItem(value: 'full', child: Text('Completo (incluye archivos de audio)')),
-                  ],
-                  onChanged: (v) => setDialogState(() => type = v ?? 'light'),
-                ),
+DropdownButtonFormField<String>(
+                   value: type,
+                   decoration: const InputDecoration(labelText: 'Tipo de respaldo'),
+                   items: const [
+                     DropdownMenuItem(value: 'light', child: Text('Ligero (config + canciones + listas)')),
+                     DropdownMenuItem(value: 'full', child: Text('Completo (incluye archivos de audio)')),
+                   ],
+                   onChanged: (v) => setDialogState(() => type = v ?? 'light'),
+                   isExpanded: true,
+                   isDense: true,
+                   dropdownColor: Theme.of(context).colorScheme.surface,
+                   style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                 ),
                 const SizedBox(height: 16),
                 ListTile(
                   leading: const Icon(Icons.schedule),

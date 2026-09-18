@@ -37,11 +37,19 @@ class MediaNotificationPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, 
     private var currentAlbumArtPath: String? = null
     private var isPlaying = false
 
+    private var downloadCompletedCount = 0
+    private var downloadTotalCount = 0
+    private var downloadActive = false
+
     companion object {
         const val CHANNEL = "com.example.precarium/media_notification"
         const val EVENT_CHANNEL = "com.example.precarium/media_notification_events"
         const val NOTIFICATION_ID = 1001
         const val CHANNEL_ID = "precarium_media"
+
+        const val DOWNLOAD_NOTIFICATION_ID = 1002
+        const val DOWNLOAD_CHANNEL_ID = "precarium_download"
+        const val DOWNLOAD_FOREGROUND_SERVICE_ID = 1003
 
         const val ACTION_PLAY = "com.example.precarium.PLAY"
         const val ACTION_PAUSE = "com.example.precarium.PAUSE"
@@ -129,6 +137,28 @@ class MediaNotificationPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, 
                 hideNotification()
                 result.success(null)
             }
+            "showDownload" -> {
+                val total = call.argument<Number>("total")?.toInt() ?: 1
+                val completed = call.argument<Number>("completed")?.toInt() ?: 0
+                downloadTotalCount = total
+                downloadCompletedCount = completed
+                downloadActive = true
+                showDownloadNotification()
+                result.success(null)
+            }
+            "updateDownload" -> {
+                val completed = call.argument<Number>("completed")?.toInt() ?: 0
+                val total = call.argument<Number>("total")?.toInt() ?: 1
+                downloadCompletedCount = completed
+                downloadTotalCount = total
+                updateDownloadNotification()
+                result.success(null)
+            }
+            "hideDownload" -> {
+                downloadActive = false
+                hideDownloadNotification()
+                result.success(null)
+            }
             else -> result.notImplemented()
         }
     }
@@ -142,8 +172,16 @@ class MediaNotificationPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, 
                 description = "Controla la reproducción de música"
                 setShowBadge(false)
             }
+            val downloadChannel = NotificationChannel(
+                DOWNLOAD_CHANNEL_ID, "Descargas",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Progreso de descargas"
+                setShowBadge(false)
+            }
             notificationManager = context?.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager?.createNotificationChannel(channel)
+            notificationManager?.createNotificationChannel(downloadChannel)
         }
     }
 
@@ -222,6 +260,53 @@ class MediaNotificationPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, 
     private fun hideNotification() {
         notificationManager?.cancel(NOTIFICATION_ID)
         context?.stopService(Intent(context, MediaForegroundService::class.java))
+    }
+
+    private fun showDownloadNotification() {
+        val ctx = context ?: return
+        val notif = buildDownloadNotification(ctx)
+        notificationManager?.notify(DOWNLOAD_NOTIFICATION_ID, notif)
+        val serviceIntent = Intent(ctx, DownloadForegroundService::class.java).apply {
+            putExtra("notification", notif)
+            putExtra("notificationId", DOWNLOAD_NOTIFICATION_ID)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ctx.startForegroundService(serviceIntent)
+        } else {
+            ctx.startService(serviceIntent)
+        }
+    }
+
+    private fun updateDownloadNotification() {
+        val ctx = context ?: return
+        val notif = buildDownloadNotification(ctx)
+        notificationManager?.notify(DOWNLOAD_NOTIFICATION_ID, notif)
+    }
+
+    private fun hideDownloadNotification() {
+        notificationManager?.cancel(DOWNLOAD_NOTIFICATION_ID)
+        context?.stopService(Intent(context, DownloadForegroundService::class.java))
+    }
+
+    private fun buildDownloadNotification(ctx: Context): Notification {
+        val progressPercent = if (downloadTotalCount > 0) {
+            ((downloadCompletedCount.toDouble() / downloadTotalCount) * 100).toInt()
+        } else {
+            0
+        }
+        val contentText = when {
+            downloadTotalCount > 1 -> "$downloadCompletedCount de $downloadTotalCount canciones ($progressPercent%)"
+            downloadCompletedCount > 0 -> "Canción $downloadCompletedCount de $downloadTotalCount ($progressPercent%)"
+            else -> "Iniciando descarga..."
+        }
+        return NotificationCompat.Builder(ctx, DOWNLOAD_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_menu_save)
+            .setContentTitle("Descargando canciones")
+            .setContentText(contentText)
+            .setOngoing(true)
+            .setProgress(downloadTotalCount, downloadCompletedCount, false)
+            .setContentIntent(makeOpenAppIntent())
+            .build()
     }
 
     private fun makePendingIntent(action: String): PendingIntent {

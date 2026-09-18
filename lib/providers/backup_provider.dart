@@ -10,6 +10,7 @@ import '../models/song.dart';
 import '../services/auto_backup_service.dart';
 import '../services/backup_service.dart';
 import '../services/database_service.dart';
+import '../services/download_notification_service.dart';
 import '../services/drive_backup_service.dart';
 
 class BackupProvider extends ChangeNotifier {
@@ -99,14 +100,18 @@ class BackupProvider extends ChangeNotifier {
     _autoBackupType = type;
     _autoBackupHour = hour;
     _autoBackupMinute = minute;
+    notifyListeners();
     if (enabled) {
       AutoBackupService.scheduleNext(hour: hour, minute: minute);
-      await AutoBackupService.scheduleAlarm(hour, minute);
+      try {
+        await AutoBackupService.scheduleAlarm(hour, minute);
+      } catch (_) {}
     } else {
       AutoBackupService.cancelTimer();
-      await AutoBackupService.cancelAlarm();
+      try {
+        await AutoBackupService.cancelAlarm();
+      } catch (_) {}
     }
-    notifyListeners();
   }
 
   Future<void> _saveLastBackupDate({bool clear = false}) async {
@@ -615,6 +620,7 @@ class BackupProvider extends ChangeNotifier {
       if (songFiles.isEmpty) {
         _fullStatus = 'No hay archivos de audio en Drive';
       } else {
+        DownloadNotificationService.show(songFiles.length);
         int downloaded = 0;
         for (int i = 0; i < songFiles.length; i++) {
           final info = songFiles[i];
@@ -623,6 +629,7 @@ class BackupProvider extends ChangeNotifier {
           _fullStatus = 'Procesando archivo ${i + 1} de ${songFiles.length}: $fileName';
           _fullProgress = 0.2 + (0.8 * (i / songFiles.length));
           notifyListeners();
+          DownloadNotificationService.update(downloaded, songFiles.length);
 
           final body = fileName.substring(0, fileName.lastIndexOf('.'));
           Song? song;
@@ -697,6 +704,7 @@ class BackupProvider extends ChangeNotifier {
           } catch (_) {}
         }
         _fullStatus = 'Restauración completa: $downloaded archivos descargados';
+        DownloadNotificationService.hide();
       }
 
       _fullProgress = 1.0;
