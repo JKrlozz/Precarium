@@ -299,22 +299,33 @@ class ImportProvider extends ChangeNotifier {
       }
 
       try {
-        final searchResults = await _ytSearch.search(searchQueries[i]);
-        if (searchResults.isNotEmpty) {
-          final first = searchResults.first;
-          downloadProvider.addDownload(
-            first.id,
-            names[i],
-            artist: artists[i],
-            thumbnailUrl: first.thumbnailUrl,
-          );
-          _downloaded++;
-        } else {
+          final String officialQuery = '${names[i]} Audio Oficial';
+          final String officialQueryEn = '${names[i]} Official Audio';
+          List<YouTubeSearchResult> searchResults;
+
+          searchResults = await _ytSearch.search(officialQuery);
+          if (searchResults.isEmpty) {
+            searchResults = await _ytSearch.search(officialQueryEn);
+          }
+          if (searchResults.isEmpty) {
+            searchResults = await _ytSearch.search(searchQueries[i]);
+          }
+
+          if (searchResults.isNotEmpty) {
+            final first = searchResults.first;
+            downloadProvider.addDownload(
+              first.id,
+              names[i],
+              artist: artists[i],
+              thumbnailUrl: first.thumbnailUrl,
+            );
+            _downloaded++;
+          } else {
+            _failed++;
+          }
+        } catch (_) {
           _failed++;
         }
-      } catch (_) {
-        _failed++;
-      }
       notifyListeners();
 
       if (_cancelled) break;
