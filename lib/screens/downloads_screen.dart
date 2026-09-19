@@ -21,9 +21,7 @@ class DownloadsScreen extends StatelessWidget {
             return TextButton(
               onPressed: () {
                 import.cancelImport();
-                for (final task in provider.activeTasks) {
-                  provider.cancelTask(task.id);
-                }
+                provider.cancelAllPending();
               },
               child: const Text('Cancelar todo'),
             );

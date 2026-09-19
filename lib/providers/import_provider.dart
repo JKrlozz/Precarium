@@ -334,6 +334,7 @@ class ImportProvider extends ChangeNotifier {
 
     if (_cancelled) {
       _isImporting = false;
+      downloadProvider.cancelAllPending();
       notifyListeners();
       return;
     }
