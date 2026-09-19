@@ -138,48 +138,50 @@ Future<void> _playAtIndex(int index) async {
 
   Future<void> next() async {
     if (_queue.isEmpty) return;
-
-    if (_isShuffled) {
-      _shuffleIndex = (_shuffleIndex + 1) % _shuffleOrder.length;
-      await _playAtIndex(_shuffleOrder[_shuffleIndex]);
-    } else {
-      final nextIndex = _currentIndex + 1;
-      if (nextIndex >= _queue.length) {
-        if (_repeatMode == PlayerRepeatMode.all) {
-          await _playAtIndex(0);
-        } else {
-          await _player.pause();
-          await _player.seek(Duration.zero);
-        }
+    try {
+      if (_isShuffled) {
+        _shuffleIndex = (_shuffleIndex + 1) % _shuffleOrder.length;
+        await _playAtIndex(_shuffleOrder[_shuffleIndex]);
       } else {
-        await _playAtIndex(nextIndex);
+        final nextIndex = _currentIndex + 1;
+        if (nextIndex >= _queue.length) {
+          if (_repeatMode == PlayerRepeatMode.all) {
+            await _playAtIndex(0);
+          } else {
+            try { await _player.pause(); } catch (_) {}
+            try { await _player.seek(Duration.zero); } catch (_) {}
+          }
+        } else {
+          await _playAtIndex(nextIndex);
+        }
       }
-    }
+    } catch (_) {}
   }
 
   Future<void> previous() async {
     if (_queue.isEmpty) return;
-
-    if (_player.position.inSeconds > 3) {
-      await _player.seek(Duration.zero);
-      return;
-    }
-
-    if (_isShuffled) {
-      _shuffleIndex = (_shuffleIndex - 1 + _shuffleOrder.length) % _shuffleOrder.length;
-      await _playAtIndex(_shuffleOrder[_shuffleIndex]);
-    } else {
-      final prevIndex = _currentIndex - 1;
-      if (prevIndex < 0) {
-        if (_repeatMode == PlayerRepeatMode.all) {
-          await _playAtIndex(_queue.length - 1);
-        } else {
-          await _player.seek(Duration.zero);
-        }
-      } else {
-        await _playAtIndex(prevIndex);
+    try {
+      if (_player.position.inSeconds > 3) {
+        try { await _player.seek(Duration.zero); } catch (_) {}
+        return;
       }
-    }
+
+      if (_isShuffled) {
+        _shuffleIndex = (_shuffleIndex - 1 + _shuffleOrder.length) % _shuffleOrder.length;
+        await _playAtIndex(_shuffleOrder[_shuffleIndex]);
+      } else {
+        final prevIndex = _currentIndex - 1;
+        if (prevIndex < 0) {
+          if (_repeatMode == PlayerRepeatMode.all) {
+            await _playAtIndex(_queue.length - 1);
+          } else {
+            try { await _player.seek(Duration.zero); } catch (_) {}
+          }
+        } else {
+          await _playAtIndex(prevIndex);
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> seek(Duration position) async {
