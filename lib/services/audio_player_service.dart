@@ -12,7 +12,6 @@ class AudioPlayerService {
   bool _isShuffled = false;
   PlayerRepeatMode _repeatMode = PlayerRepeatMode.off;
   int _playCounter = 0;
-  bool _isPlayingTrack = false;
   VoidCallback? onSongChanged;
 
   List<int> _shuffleOrder = [];
@@ -93,8 +92,6 @@ class AudioPlayerService {
 
 Future<void> _playAtIndex(int index) async {
     if (index < 0 || index >= _queue.length) return;
-    if (_isPlayingTrack) return;
-    _isPlayingTrack = true;
     _playCounter++;
     _currentIndex = index;
     onSongChanged?.call();
@@ -105,8 +102,6 @@ Future<void> _playAtIndex(int index) async {
       await _player.play();
     } catch (e) {
       // Error playing file
-    } finally {
-      _isPlayingTrack = false;
     }
 }
 
