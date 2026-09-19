@@ -142,7 +142,7 @@ Future<void> _playAtIndex(int index) async {
   }
 
   Future<void> next() async {
-    if (_queue.isEmpty || _isPlayingTrack) return;
+    if (_queue.isEmpty) return;
 
     if (_isShuffled) {
       _shuffleIndex = (_shuffleIndex + 1) % _shuffleOrder.length;
@@ -163,7 +163,7 @@ Future<void> _playAtIndex(int index) async {
   }
 
   Future<void> previous() async {
-    if (_queue.isEmpty || _isPlayingTrack) return;
+    if (_queue.isEmpty) return;
 
     if (_player.position.inSeconds > 3) {
       await _player.seek(Duration.zero);
