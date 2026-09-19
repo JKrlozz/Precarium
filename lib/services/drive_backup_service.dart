@@ -12,7 +12,7 @@ class DriveBackupService {
   static const String _songsFolder = 'Canciones Respaldo';
   static const _timeout = Duration(seconds: 60);
 
-  final http.Client _client = http.Client();
+  http.Client _client = http.Client();
   late final GoogleSignIn _googleSignIn;
 
   DriveBackupService() {
@@ -263,16 +263,9 @@ class DriveBackupService {
   }
 
   void cancelUpload() {
-    _uploadClient.close();
     _client.close();
-    _client = http.Client();
-    _uploadClient = http.Client();
-  }
-
-  void cancelDownload() {
-    _client.close();
-    _client = http.Client();
     _uploadClient.close();
+    _client = http.Client();
     _uploadClient = http.Client();
   }
 

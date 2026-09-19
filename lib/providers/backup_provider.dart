@@ -51,7 +51,6 @@ class BackupProvider extends ChangeNotifier {
   void cancelUpload() {
     _cancelRequested = true;
     _driveService.cancelUpload();
-    _driveService.cancelDownload();
     _fullStatus = 'Cancelando...';
     notifyListeners();
   }
