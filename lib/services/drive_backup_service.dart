@@ -264,6 +264,16 @@ class DriveBackupService {
 
   void cancelUpload() {
     _uploadClient.close();
+    _client.close();
+    _client = http.Client();
+    _uploadClient = http.Client();
+  }
+
+  void cancelDownload() {
+    _client.close();
+    _client = http.Client();
+    _uploadClient.close();
+    _uploadClient = http.Client();
   }
 
   Future<String> createSongMetadata(String folderId, String fileName) async {

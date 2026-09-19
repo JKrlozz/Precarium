@@ -51,6 +51,7 @@ class BackupProvider extends ChangeNotifier {
   void cancelUpload() {
     _cancelRequested = true;
     _driveService.cancelUpload();
+    _driveService.cancelDownload();
     _fullStatus = 'Cancelando...';
     notifyListeners();
   }
@@ -681,6 +682,13 @@ class BackupProvider extends ChangeNotifier {
           }
 
           try {
+            if (_cancelRequested) {
+              DownloadNotificationService.hide();
+              _fullStatus = 'Restauración cancelada por el usuario';
+              _fullProgress = 1.0;
+              notifyListeners();
+              return 'Restauración cancelada';
+            }
             await _driveService.downloadSongFile(fileId, localPath);
             downloaded++;
             if (song != null) {
