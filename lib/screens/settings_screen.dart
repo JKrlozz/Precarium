@@ -541,6 +541,7 @@ class _DriveSectionState extends State<_DriveSection> {
               s.setPrimaryColor(Color(primaryColor));
             }
           }
+          break;
         case BackupChoice.songs:
           final songs = await backupProv.restoreSongsFromDrive();
           if (mounted && songs.isNotEmpty) {
@@ -556,24 +557,37 @@ class _DriveSectionState extends State<_DriveSection> {
               libraryProvider: lib,
             );
           }
+          break;
         case BackupChoice.playlists:
           await backupProv.restorePlaylistsFromDrive();
           if (mounted) {
             context.read<LibraryProvider>().loadLibrary();
           }
+          break;
         case BackupChoice.full:
-          await backupProv.downloadFullRestore();
+          final restoreResult = await backupProv.downloadFullRestore();
           if (mounted) {
             context.read<LibraryProvider>().loadLibrary();
           }
+          if (!mounted || _cancelled) return;
+          if (restoreResult.contains('cancelada')) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Restauración cancelada'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Restauración completada'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+          break;
       }
       if (!mounted || _cancelled) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Restauración completada'),
-          backgroundColor: Colors.green,
-        ),
-      );
     } catch (e) {
       if (!mounted || _cancelled) return;
       ScaffoldMessenger.of(context).showSnackBar(

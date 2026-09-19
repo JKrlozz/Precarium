@@ -366,9 +366,11 @@ class BackupProvider extends ChangeNotifier {
         _fullProgress = 1.0;
         notifyListeners();
       } else {
+        DownloadNotificationService.show(toUpload.length);
         int failedCount = 0;
         for (int i = 0; i < toUpload.length; i++) {
           if (_cancelRequested) {
+            DownloadNotificationService.hide();
             _fullStatus = 'Respaldo cancelado por el usuario';
             _fullProgress = 1.0;
             notifyListeners();
@@ -380,16 +382,19 @@ class BackupProvider extends ChangeNotifier {
           _fullStatus = 'Canción ${i + 1} de ${toUpload.length}: ${song.artist} - ${song.title}';
           _fullProgress = 0.2 + (0.8 * ((i + 1) / toUpload.length));
           notifyListeners();
+          DownloadNotificationService.update(i + 1, toUpload.length);
           try {
             await _driveService.uploadSongFile(songsFolderId, song.filePath, driveName);
           } catch (_) {
             if (_cancelRequested) {
+              DownloadNotificationService.hide();
               _fullStatus = 'Respaldo cancelado por el usuario';
               _fullProgress = 1.0;
               notifyListeners();
               return;
             }
             failedCount++;
+            DownloadNotificationService.update(i + 1, toUpload.length);
           }
         }
 
@@ -399,6 +404,7 @@ class BackupProvider extends ChangeNotifier {
             '${skipped > 0 ? ", $skipped ya existentes" : ""}';
         _fullProgress = 1.0;
         notifyListeners();
+        DownloadNotificationService.hide();
       }
 
       await _saveLastBackupDate();
@@ -551,6 +557,7 @@ class BackupProvider extends ChangeNotifier {
   // ── Full restore ──
 
   Future<String> downloadFullRestore() async {
+    _cancelRequested = false;
     _isImporting = true;
     _fullProgress = 0;
     _fullStatus = 'Iniciando restauración completa...';
@@ -629,7 +636,7 @@ class BackupProvider extends ChangeNotifier {
           _fullStatus = 'Procesando archivo ${i + 1} de ${songFiles.length}: $fileName';
           _fullProgress = 0.2 + (0.8 * (i / songFiles.length));
           notifyListeners();
-          DownloadNotificationService.update(downloaded, songFiles.length);
+          DownloadNotificationService.update(i, songFiles.length);
 
           final body = fileName.substring(0, fileName.lastIndexOf('.'));
           Song? song;
@@ -681,6 +688,7 @@ class BackupProvider extends ChangeNotifier {
           }
 
           try {
+            await _driveService.downloadSongFile(fileId, localPath);
             if (_cancelRequested) {
               DownloadNotificationService.hide();
               _fullStatus = 'Restauración cancelada por el usuario';
@@ -688,7 +696,6 @@ class BackupProvider extends ChangeNotifier {
               notifyListeners();
               return 'Restauración cancelada';
             }
-            await _driveService.downloadSongFile(fileId, localPath);
             downloaded++;
             if (song != null) {
               final updated = Song(
@@ -708,7 +715,15 @@ class BackupProvider extends ChangeNotifier {
               );
               await DatabaseService.upsertSong(updated);
             }
-          } catch (_) {}
+          } catch (_) {
+            if (_cancelRequested) {
+              DownloadNotificationService.hide();
+              _fullStatus = 'Restauración cancelada por el usuario';
+              _fullProgress = 1.0;
+              notifyListeners();
+              return 'Restauración cancelada';
+            }
+          }
         }
         _fullStatus = 'Restauración completa: $downloaded archivos descargados';
         DownloadNotificationService.hide();
