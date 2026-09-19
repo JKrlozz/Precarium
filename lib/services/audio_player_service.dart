@@ -12,7 +12,8 @@ class AudioPlayerService {
   bool _isShuffled = false;
   PlayerRepeatMode _repeatMode = PlayerRepeatMode.off;
   int _playCounter = 0;
-  bool _isPlayingTrack = false;
+  DateTime? _lastNavigation;
+  static const _navigationCooldown = Duration(milliseconds: 500);
   VoidCallback? onSongChanged;
 
   List<int> _shuffleOrder = [];
@@ -93,10 +94,6 @@ class AudioPlayerService {
 
 Future<void> _playAtIndex(int index) async {
     if (index < 0 || index >= _queue.length) return;
-    while (_isPlayingTrack) {
-      await Future.delayed(const Duration(milliseconds: 50));
-    }
-    _isPlayingTrack = true;
     _playCounter++;
     _currentIndex = index;
     onSongChanged?.call();
@@ -107,8 +104,6 @@ Future<void> _playAtIndex(int index) async {
       await _player.play();
     } catch (e) {
       // Error playing file
-    } finally {
-      _isPlayingTrack = false;
     }
 }
 
@@ -145,6 +140,9 @@ Future<void> _playAtIndex(int index) async {
 
   Future<void> next() async {
     if (_queue.isEmpty) return;
+    final now = DateTime.now();
+    if (_lastNavigation != null && now.difference(_lastNavigation!) < _navigationCooldown) return;
+    _lastNavigation = now;
     try {
       if (_isShuffled) {
         _shuffleIndex = (_shuffleIndex + 1) % _shuffleOrder.length;
@@ -167,6 +165,9 @@ Future<void> _playAtIndex(int index) async {
 
   Future<void> previous() async {
     if (_queue.isEmpty) return;
+    final now = DateTime.now();
+    if (_lastNavigation != null && now.difference(_lastNavigation!) < _navigationCooldown) return;
+    _lastNavigation = now;
     try {
       if (_player.position.inSeconds > 3) {
         try { await _player.seek(Duration.zero); } catch (_) {}
