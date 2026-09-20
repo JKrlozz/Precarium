@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -7,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/song.dart';
+import '../providers/library_provider.dart';
 import '../services/auto_backup_service.dart';
 import '../services/backup_service.dart';
 import '../services/database_service.dart';
@@ -556,8 +558,7 @@ class BackupProvider extends ChangeNotifier {
 
   // ── Full restore ──
 
-  Future<String> downloadFullRestore() async {
-    _cancelRequested = false;
+  Future<String> downloadFullRestore({LibraryProvider? libraryProvider}) async {
     _isImporting = true;
     _fullProgress = 0;
     _fullStatus = 'Iniciando restauración completa...';
@@ -636,7 +637,7 @@ class BackupProvider extends ChangeNotifier {
           _fullStatus = 'Procesando archivo ${i + 1} de ${songFiles.length}: $fileName';
           _fullProgress = 0.2 + (0.8 * (i / songFiles.length));
           notifyListeners();
-          DownloadNotificationService.update(i, songFiles.length);
+          DownloadNotificationService.update(downloaded, songFiles.length);
 
           final body = fileName.substring(0, fileName.lastIndexOf('.'));
           Song? song;
@@ -688,7 +689,6 @@ class BackupProvider extends ChangeNotifier {
           }
 
           try {
-            await _driveService.downloadSongFile(fileId, localPath);
             if (_cancelRequested) {
               DownloadNotificationService.hide();
               _fullStatus = 'Restauración cancelada por el usuario';
@@ -696,6 +696,7 @@ class BackupProvider extends ChangeNotifier {
               notifyListeners();
               return 'Restauración cancelada';
             }
+            await _driveService.downloadSongFile(fileId, localPath);
             downloaded++;
             if (song != null) {
               final updated = Song(
@@ -715,15 +716,8 @@ class BackupProvider extends ChangeNotifier {
               );
               await DatabaseService.upsertSong(updated);
             }
-          } catch (_) {
-            if (_cancelRequested) {
-              DownloadNotificationService.hide();
-              _fullStatus = 'Restauración cancelada por el usuario';
-              _fullProgress = 1.0;
-              notifyListeners();
-              return 'Restauración cancelada';
-            }
-          }
+            unawaited(libraryProvider?.loadLibrary());
+          } catch (_) {}
         }
         _fullStatus = 'Restauración completa: $downloaded archivos descargados';
         DownloadNotificationService.hide();

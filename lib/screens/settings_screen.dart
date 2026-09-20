@@ -565,10 +565,8 @@ class _DriveSectionState extends State<_DriveSection> {
           }
           break;
         case BackupChoice.full:
-          final restoreResult = await backupProv.downloadFullRestore();
-          if (mounted) {
-            context.read<LibraryProvider>().loadLibrary();
-          }
+          final libraryProv = context.read<LibraryProvider>();
+          final restoreResult = await backupProv.downloadFullRestore(libraryProvider: libraryProv);
           if (!mounted || _cancelled) return;
           if (restoreResult.contains('cancelada')) {
             ScaffoldMessenger.of(context).showSnackBar(
