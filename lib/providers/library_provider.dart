@@ -5,6 +5,8 @@ import '../models/playlist.dart';
 import '../services/music_scan_service.dart';
 import '../services/database_service.dart';
 
+enum LibrarySortBy { alphabetical, date, size }
+
 class LibraryProvider extends ChangeNotifier {
   static const String likedPlaylistId = '__liked__';
   static const String likedPlaylistName = 'Canciones que me gustan';
@@ -15,6 +17,11 @@ class LibraryProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool _isInitialized = false;
   String? _error;
+  LibrarySortBy _sortBy = LibrarySortBy.alphabetical;
+  bool _sortDescending = false;
+
+  LibrarySortBy get sortBy => _sortBy;
+  bool get sortDescending => _sortDescending;
 
   List<Song> get songs => List.unmodifiable(_songs);
   List<Playlist> get playlists => List.unmodifiable(_playlists);
@@ -104,6 +111,55 @@ class LibraryProvider extends ChangeNotifier {
 
   List<String> get albums {
     return _songs.map((s) => s.album).toSet().toList()..sort();
+  }
+
+  void setSortBy(LibrarySortBy sortBy) {
+    if (_sortBy == sortBy) {
+      _sortDescending = !_sortDescending;
+    } else {
+      _sortBy = sortBy;
+      _sortDescending = false;
+    }
+    notifyListeners();
+  }
+
+  void toggleSortDirection() {
+    _sortDescending = !_sortDescending;
+    notifyListeners();
+  }
+
+  List<Song> getSortedSongs(List<Song> songs) {
+    final list = List<Song>.from(songs);
+    switch (_sortBy) {
+      case LibrarySortBy.alphabetical:
+        list.sort((a, b) => a.title.compareTo(b.title));
+        break;
+      case LibrarySortBy.date:
+        list.sort((a, b) {
+          final ad = a.downloadDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final bd = b.downloadDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return ad.compareTo(bd);
+        });
+        break;
+      case LibrarySortBy.size:
+        list.sort((a, b) => a.fileSize.compareTo(b.fileSize));
+        break;
+    }
+    if (_sortDescending) {
+      list.sort((a, b) {
+        switch (_sortBy) {
+          case LibrarySortBy.alphabetical:
+            return b.title.compareTo(a.title);
+          case LibrarySortBy.date:
+            final ad = a.downloadDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bd = b.downloadDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return bd.compareTo(ad);
+          case LibrarySortBy.size:
+            return b.fileSize.compareTo(a.fileSize);
+        }
+      });
+    }
+    return list;
   }
 
   Future<void> loadLibrary() async {

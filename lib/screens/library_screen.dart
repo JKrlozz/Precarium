@@ -240,6 +240,66 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   label: const Text('Nueva'),
                   onPressed: _showCreatePlaylistDialog,
                 ),
+              PopupMenuButton<LibrarySortBy>(
+                icon: const Icon(Icons.sort),
+                tooltip: 'Ordenar',
+                onSelected: (sortBy) {
+                  context.read<LibraryProvider>().setSortBy(sortBy);
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: LibrarySortBy.alphabetical,
+                    child: Row(
+                      children: [
+                        Text('Alfabético', style: TextStyle(
+                          color: context.read<LibraryProvider>().sortBy == LibrarySortBy.alphabetical
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
+                        )),
+                        if (context.read<LibraryProvider>().sortBy == LibrarySortBy.alphabetical)
+                          Icon(
+                            context.read<LibraryProvider>().sortDescending ? Icons.arrow_downward : Icons.arrow_upward,
+                            size: 16,
+                          ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: LibrarySortBy.date,
+                    child: Row(
+                      children: [
+                        Text('Fecha de descarga', style: TextStyle(
+                          color: context.read<LibraryProvider>().sortBy == LibrarySortBy.date
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
+                        )),
+                        if (context.read<LibraryProvider>().sortBy == LibrarySortBy.date)
+                          Icon(
+                            context.read<LibraryProvider>().sortDescending ? Icons.arrow_downward : Icons.arrow_upward,
+                            size: 16,
+                          ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: LibrarySortBy.size,
+                    child: Row(
+                      children: [
+                        Text('Tamaño', style: TextStyle(
+                          color: context.read<LibraryProvider>().sortBy == LibrarySortBy.size
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
+                        )),
+                        if (context.read<LibraryProvider>().sortBy == LibrarySortBy.size)
+                          Icon(
+                            context.read<LibraryProvider>().sortDescending ? Icons.arrow_downward : Icons.arrow_upward,
+                            size: 16,
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
               IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: () => library.loadLibrary(),
@@ -398,8 +458,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Widget _buildSongsView(LibraryProvider library) {
-    final query = _searchController.text.trim();
-    final songs = query.isEmpty ? library.songs : library.search(query);
+final query = _searchController.text.trim();
+     final songs = library.getSortedSongs(query.isEmpty ? library.songs : library.search(query));
 
     if (songs.isEmpty) {
       return Center(
